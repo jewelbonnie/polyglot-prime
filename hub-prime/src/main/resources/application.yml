@@ -32,7 +32,7 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: none
+      ddl-auto: update
     show-sql: true
   mail:
     host: sandbox.smtp.mailtrap.io
@@ -45,7 +45,9 @@ spring:
           auth: true
           starttls:
             enable: true
-
+  batch:
+    jdbc:
+      initialize-schema: always
 springdoc:
   api-docs:
     path: /docs/api/openapi
@@ -123,3 +125,11 @@ org:
           idleTimeout: 300000
           connectionTimeout: 30000
           maxLifetime: 1800000
+path:
+  base:
+    dir: ${user.dir}  # The base directory will be the current working directory
+  inbound:
+    folder: ${path.base.dir}/src/main/java/org/techbd/inbound  # Relative to base directory       
+  ingress:
+    home: ${path.base.dir}/src/main/java/org/techbd/ingresshome 
+          
