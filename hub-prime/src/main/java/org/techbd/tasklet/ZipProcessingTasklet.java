@@ -7,6 +7,8 @@ import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
+import lib.aide.vfs.VfsIngressConsumer;
+
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.VFS;
 
@@ -15,10 +17,17 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 public class ZipProcessingTasklet implements Tasklet {
     private static final Logger logger = LoggerFactory.getLogger(ZipProcessingTasklet.class);
+
+    // Regular expressions for file patterns
+    private static final Pattern FILE_PATTERN = Pattern.compile(
+            "(DEMOGRAPHIC_DATA|QE_ADMIN_DATA|SCREENING)_(.+)");
+
     @Value("${path.inbound.folder}")
     private String inboundFolder;
 
@@ -29,6 +38,43 @@ public class ZipProcessingTasklet implements Tasklet {
     public void init() {
         System.out.println("Resolved Inbound Folder Path: " + inboundFolder);
         System.out.println("Resolved Ingress Home Path: " + ingressHome);
+    }
+
+    // Extracts a group identifier from filename.
+    private String extractGroupId(FileObject file) {
+        String fileName = file.getName().getBaseName();
+        Matcher matcher = FILE_PATTERN.matcher(fileName);
+
+        if (matcher.matches()) {
+            // Extract the common suffix (group identifier)
+            return matcher.group(2);
+        }
+        return null;
+    }
+
+    private boolean isGroupComplete(VfsIngressConsumer.IngressGroup group) {
+        if (group == null || group.groupedEntries().isEmpty()) {
+            return false;
+        }
+
+        // Check if we have all required file types in the group
+        boolean hasDemographic = false;
+        boolean hasQeAdmin = false;
+        boolean hasScreening = false;
+
+        for (VfsIngressConsumer.IngressIndividual entry : group.groupedEntries()) {
+            String fileName = entry.entry().getName().getBaseName();
+            if (fileName.startsWith("DEMOGRAPHIC_DATA_")) {
+                hasDemographic = true;
+            } else if (fileName.startsWith("QE_ADMIN_DATA_")) {
+                hasQeAdmin = true;
+            } else if (fileName.startsWith("SCREENING_")) {
+                hasScreening = true;
+            }
+        }
+
+        // Group is complete if we have all three file types
+        return hasDemographic && hasQeAdmin && hasScreening;
     }
 
     @Override
@@ -45,12 +91,13 @@ public class ZipProcessingTasklet implements Tasklet {
 
             lib.aide.vfs.VfsIngressConsumer consumer = new lib.aide.vfs.VfsIngressConsumer.Builder()
                     .addIngressPath(inboundFO)
-                    .isGroup(file -> null) // No grouping needed
-                    .isGroupComplete(group -> true) // Not using groups
-                    .isSnapshotable((ingressEntry, file, dir, audit) -> ingressEntry.entry().getName().getExtension()
-                            .equalsIgnoreCase("zip"))
+                    .isGroup(this::extractGroupId) // Group files based on common suffix
+                    .isGroupComplete(this::isGroupComplete) // Check if group has all required files
+                    .isSnapshotable((ingressEntry, file, dir, audit) -> {
+                        String extension = ingressEntry.entry().getName().getExtension();
+                        return extension.equalsIgnoreCase("zip");
+                    })
                     .populateSnapshot((ingressEntry, file, dir, audit) -> List.of())
-
                     .consumables(lib.aide.vfs.VfsIngressConsumer::consumeUnzipped)
                     .build();
 
@@ -77,6 +124,7 @@ public class ZipProcessingTasklet implements Tasklet {
             logger.error("Error processing ZIP files", e);
             throw e;
         }
+
         return RepeatStatus.FINISHED;
     }
 }
