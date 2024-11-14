@@ -1,39 +1,30 @@
 package org.techbd.tasklet;
 
+import org.apache.commons.vfs2.FileObject;
+import org.apache.commons.vfs2.FileSystemException;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.repeat.RepeatStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.techbd.commonvfsservice.VfsCoreService;
 import org.techbd.customexception.IncompleteGroupException;
-
-import jakarta.annotation.PostConstruct;
 import lib.aide.vfs.VfsIngressConsumer;
 
-import org.apache.commons.vfs2.FileObject;
-import org.apache.commons.vfs2.VFS;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.commons.vfs2.FileSystemException;
-import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Tasklet implementation for processing ZIP files in a batch step.
- * This class validates file structure, groups files based on specific patterns,
- * and audits the processing results.
+ * A Spring Batch tasklet implementation that processes ZIP files containing
+ * demographic,
+ * QE admin, and screening data. This tasklet validates and processes grouped
+ * files
+ * according to specific naming patterns and completeness requirements.
  */
 @Component
 public class ZipProcessingTasklet implements Tasklet {
-    private static final Logger logger = LoggerFactory.getLogger(ZipProcessingTasklet.class);
-
-    // Regular expressions for file patterns
     private static final Pattern FILE_PATTERN = Pattern.compile(
             "(DEMOGRAPHIC_DATA|QE_ADMIN_DATA|SCREENING)_(.+)");
 
@@ -43,33 +34,86 @@ public class ZipProcessingTasklet implements Tasklet {
     @Value("${path.ingress.home}")
     private String ingressHome;
 
-    @PostConstruct
-    public void init() {
-        System.out.println("Resolved Inbound Folder Path: " + inboundFolder);
-        System.out.println("Resolved Ingress Home Path: " + ingressHome);
+    private final VfsCoreService vfsCoreService;
+
+    @Autowired
+    public ZipProcessingTasklet(VfsCoreService vfsCoreService) {
+        this.vfsCoreService = vfsCoreService;
     }
 
+    /**
+     * Executes the tasklet, processing ZIP files in the inbound directory.
+     *
+     * @param contribution Mutable state to be passed back to the JobRepository
+     * @param chunkContext Contains information from the job and step environment
+     * @return RepeatStatus indicating whether processing should repeat
+     * @throws Exception if any error occurs during processing
+     */
+    @Override
+    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
+        try {
+            processZipFiles();
+            return RepeatStatus.FINISHED;
+        } catch (Exception e) {
+            throw new RuntimeException("Error processing ZIP files: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Processes ZIP files from the inbound directory, validating and moving them
+     * to the ingress home directory.
+     *
+     * @return UUID representing the processing session
+     * @throws FileSystemException if there are any file system related errors
+     */
+    private UUID processZipFiles() throws FileSystemException {
+        FileObject inboundFO = vfsCoreService.resolveFile(inboundFolder);
+        FileObject ingresshomeFO = vfsCoreService.resolveFile(ingressHome);
+
+        // Validate directories
+        if (!vfsCoreService.fileExists(inboundFO)) {
+            throw new FileSystemException("Inbound folder does not exist: " + inboundFO.getName().getPath());
+        }
+        vfsCoreService.validateAndCreateDirectories(ingresshomeFO);
+
+        // Create VFS consumer with grouping and validation
+        VfsIngressConsumer consumer = vfsCoreService.createConsumer(
+                inboundFO,
+                this::extractGroupId,
+                this::isGroupComplete);
+
+        return vfsCoreService.processFiles(consumer, ingresshomeFO);
+    }
+
+    /**
+     * Extracts the group ID from a file name based on the defined pattern.
+     *
+     * @param file The file object to extract the group ID from
+     * @return The extracted group ID, or null if the file name doesn't match the
+     *         pattern
+     */
     private String extractGroupId(FileObject file) {
         String fileName = file.getName().getBaseName();
-        Matcher matcher = FILE_PATTERN.matcher(fileName);
-
-        if (matcher.matches()) {
-            // Extract the common suffix (group identifier)
-            return matcher.group(2);
-        }
-        return null;
+        var matcher = FILE_PATTERN.matcher(fileName);
+        return matcher.matches() ? matcher.group(2) : null;
     }
 
+    /**
+     * Validates whether a group of files is complete by checking for the presence
+     * of all required file types (demographic, QE admin, and screening data).
+     *
+     * @param group The group of files to validate
+     * @return true if the group is complete, false otherwise
+     * @throws IncompleteGroupException if the group is missing required file types
+     */
     private boolean isGroupComplete(VfsIngressConsumer.IngressGroup group) {
         if (group == null || group.groupedEntries().isEmpty()) {
             return false;
         }
 
-        // Check if we have all required file types in the group
         boolean hasDemographic = true;
         boolean hasQeAdmin = true;
-        // TODO: Change the value later, this is for testing only for custom Exception
-        boolean hasScreening = false;
+        boolean hasScreening = true;
 
         for (VfsIngressConsumer.IngressIndividual entry : group.groupedEntries()) {
             String fileName = entry.entry().getName().getBaseName();
@@ -78,8 +122,7 @@ public class ZipProcessingTasklet implements Tasklet {
             } else if (fileName.startsWith("QE_ADMIN_DATA_")) {
                 hasQeAdmin = true;
             } else if (fileName.startsWith("SCREENING_")) {
-                // TODO: Change the value later, this is for testing only
-                hasScreening = false;
+                hasScreening = true;
             }
         }
 
@@ -90,59 +133,5 @@ public class ZipProcessingTasklet implements Tasklet {
         }
 
         return true;
-    }
-
-    private void validateFolderStructure(FileObject inboundFO, FileObject ingresshomeFO) throws FileSystemException {
-        if (!inboundFO.exists()) {
-            throw new FileSystemException("Inbound folder does not exist: " + inboundFO.getName().getPath());
-        }
-
-        if (!ingresshomeFO.exists()) {
-            logger.info("Creating ingress home folder: {}", ingresshomeFO.getName().getPath());
-            ingresshomeFO.createFolder();
-        }
-
-    }
-
-    @Override
-    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
-        logger.info("Starting ZIP file processing tasklet");
-
-        FileObject inboundFO = VFS.getManager().resolveFile(inboundFolder);
-        FileObject ingresshomeFO = VFS.getManager().resolveFile(ingressHome);
-        validateFolderStructure(inboundFO, ingresshomeFO);
-
-        lib.aide.vfs.VfsIngressConsumer consumer = new lib.aide.vfs.VfsIngressConsumer.Builder()
-                .addIngressPath(inboundFO)
-                .isGroup(this::extractGroupId) // Group files based on common suffix
-                .isGroupComplete(this::isGroupComplete) // Check if group has all required files
-                .isSnapshotable((ingressEntry, file, dir, audit) -> {
-                    String extension = ingressEntry.entry().getName().getExtension();
-                    return extension.equalsIgnoreCase("zip");
-                })
-                .populateSnapshot((ingressEntry, file, dir, audit) -> List.of())
-                .consumables(lib.aide.vfs.VfsIngressConsumer::consumeUnzipped)
-                .build();
-
-        UUID sessionId = UUID.randomUUID();
-        consumer.drain(ingresshomeFO, Optional.of(sessionId));
-
-        logger.info("ZIP processing completed successfully. Session ID: {}", sessionId);
-
-        // Log detailed audit events
-        consumer.getAudit().events().forEach(event -> {
-            if (event.path().isPresent()) {
-                logger.info("Audit event: {} - {} - {}",
-                        event.nature(),
-                        event.message(),
-                        event.path().get().getName().getBaseName());
-            } else {
-                logger.info("Audit event: {} - {}",
-                        event.nature(),
-                        event.message());
-            }
-        });
-
-        return RepeatStatus.FINISHED;
     }
 }
