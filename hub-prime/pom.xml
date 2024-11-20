@@ -321,6 +321,27 @@
             <artifactId>hapi-fhir-client</artifactId>
         <version>7.4.0</version>
         </dependency>
+	 <!-- JUnit Jupiter API for writing tests -->
+    <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter-api</artifactId>
+        <version>5.10.0</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- JUnit Jupiter Engine for running tests -->
+    <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter-engine</artifactId>
+        <version>5.10.0</version>
+        <scope>test</scope>
+    </dependency>
+	     <dependency>
+    <groupId>org.json</groupId>
+    <artifactId>json</artifactId>
+    <version>20230227</version>
+</dependency>
+
 	</dependencies>
 
 	<build>
