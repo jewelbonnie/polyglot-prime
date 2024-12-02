@@ -1,125 +1,332 @@
 package org.techbd.service;
 
-import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
+import org.apache.commons.vfs2.FileObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.techbd.service.http.hub.prime.AppConfig;
 
+import lib.aide.vfs.VfsIngressConsumer;
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.nio.file.FileSystemException;
+import java.nio.file.Paths;
+import java.util.*;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
-/**
- * Service class for validating CSV files using an external Python validation
- * script.
- */
 @Service
-@RequiredArgsConstructor
 public class CsvValidationService {
 
     private static final Logger log = LoggerFactory.getLogger(CsvValidationService.class);
     private final AppConfig appConfig;
+    private final VfsCoreService vfsCoreService;
+    CsvValidationService csvValidationService;// please remove this it can use cyclic refrence,please adopt alternative
 
-    /**
-     * Initialization method called after dependency injection.
-     * 
-     * Logs the loaded CSV configuration for debugging and informational purposes.
-     */
-    @PostConstruct
-    public void init() {
-        log.info("CSV Configuration loaded: {}", appConfig.getCsv());
+    public CsvValidationService(
+            AppConfig appConfig,
+            VfsCoreService vfsCoreService
+    // CsvValidationService csvValidationService
+    ) {
+        this.appConfig = appConfig;
+        this.vfsCoreService = vfsCoreService;
+        // this.csvValidationService = csvValidationService;
     }
 
-    /**
-     * Creates a new ProcessBuilder instance.
-     * 
-     * This method can be overridden for testing or custom process creation.
-     * 
-     * @return A new ProcessBuilder instance
-     */
-    protected ProcessBuilder createProcessBuilder() {
-        return new ProcessBuilder();
+    private String inboundFolder = "path/to/inbound";
+    private String ingressHome = "path/to/ingresshome";
+
+    private static final Pattern FILE_PATTERN = Pattern.compile(
+            "(DEMOGRAPHIC_DATA|QE_ADMIN_DATA|SCREENING)_(.+)");
+
+    // add more files according to the command
+    public void executeZipProcessing() {
+        try {
+            // Log paths for debugging
+            log.info("Inbound Folder Path: {}", inboundFolder);
+            System.out.println("Inbound Folder Path: " + inboundFolder);
+            log.info("Ingress Home Path: {}", ingressHome);
+            System.out.println("Ingress Home Path: " + ingressHome);
+
+            // Process ZIP files and get the session ID
+            UUID processId = processZipFiles();
+            log.info("ZIP files processed with session ID: {}", processId);
+
+            // Construct processed directory path
+            String processedDirPath = ingressHome + "/" + processId + "/ingress";
+            log.info("Attempting to resolve processed directory: {}", processedDirPath);
+
+            // Get processed files for validation
+            FileObject processedDir = vfsCoreService.resolveFile(processedDirPath);
+
+            if (!vfsCoreService.fileExists(processedDir)) {
+                log.error("Processed directory does not exist: {}", processedDirPath);
+                throw new FileSystemException("Processed directory not found: " + processedDirPath);
+            }
+
+            // Collect CSV files for validation
+            List<String> csvFiles = collectCsvFiles(processedDir);
+            log.info("Found {} CSV files for validation", csvFiles.size());
+
+            if (csvFiles.isEmpty()) {
+                log.warn("No CSV files found for validation. Skipping validation.");
+                return; // Or handle this scenario as needed
+            }
+
+            // Validate CSV files
+            Map<String, Object> validationResults = validateFiles(csvFiles);
+            log.info("Validation Results: {}", validationResults);
+
+        } catch (Exception e) {
+            log.error("Error in ZIP processing tasklet: {}", e.getMessage(), e);
+            throw new RuntimeException("Error processing ZIP files: " + e.getMessage(), e);
+        }
     }
 
-    /**
-     * Validates a group of CSV files using the configured Python validation script.
-     * Executes the Python script as a subprocess and collects the output and
-     * errors.
-     *
-     * @return a map containing the validation results.
-     * @throws Exception if the validation script fails or encounters an error.
-     */
-    public Map<String, Object> validateCsvGroup() throws Exception {
+    private UUID processZipFiles() throws FileSystemException, org.apache.commons.vfs2.FileSystemException {
+        FileObject inboundFO = vfsCoreService.resolveFile(inboundFolder);
+        FileObject ingresshomeFO = vfsCoreService.resolveFile(ingressHome);
+
+        if (!vfsCoreService.fileExists(inboundFO)) {
+            log.error("Inbound folder does not exist: {}", inboundFO.getName().getPath());
+            throw new FileSystemException("Inbound folder does not exist: " + inboundFO.getName().getPath());
+        }
+        vfsCoreService.validateAndCreateDirectories(ingresshomeFO);
+
+        VfsIngressConsumer consumer = vfsCoreService.createConsumer(
+                inboundFO,
+                this::extractGroupId,
+                this::isGroupComplete);
+
+        // Important: Capture the returned session UUID and processed file paths
+        UUID processId = vfsCoreService.processFiles(consumer, ingresshomeFO);
+
+        // Log the processed files
+        // processedFilePaths = consumer.drain(ingresshomeFO,
+        // java.util.Optional.empty());
+        // log.info("Processed file paths from VfsIngressConsumer: {}",
+        // processedFilePaths);
+
+        return processId;
+        // return vfsCoreService.processFiles(consumer, ingresshomeFO);
+    }
+
+    private List<String> collectCsvFiles(FileObject processedDir) throws FileSystemException {
+        List<String> csvFiles = new ArrayList<>();
+
+        try {
+            FileObject[] children = processedDir.getChildren();
+
+            if (children == null) {
+                log.warn("No children found in processed directory: {}", processedDir.getName().getPath());
+                return csvFiles;
+            }
+
+            for (FileObject child : children) {
+                // Enhanced null and extension checking
+                if (child != null
+                        && child.getName() != null
+                        && "csv".equalsIgnoreCase(child.getName().getExtension())) {
+                    log.info("Found CSV file: {}", child.getName().getPath());
+                    csvFiles.add(child.getName().getPath());
+                }
+            }
+
+            if (csvFiles.isEmpty()) {
+                log.warn("No CSV files found in directory: {}", processedDir.getName().getPath());
+            }
+        } catch (org.apache.commons.vfs2.FileSystemException e) {
+            log.error("Error collecting CSV files from directory {}: {}",
+                    processedDir.getName().getPath(), e.getMessage(), e);
+        }
+
+        return csvFiles;
+    }
+
+    private Map<String, Object> validateFiles(List<String> csvFiles) {
+        Map<String, Object> validationResults = new HashMap<>();
+
+        // Safety check for null or empty files list
+        if (csvFiles == null || csvFiles.isEmpty()) {
+            log.warn("No CSV files provided for validation when  csvFiles == null ");
+            validationResults.put("status", "NO_FILES");
+            validationResults.put("message", "No CSV files found for validation");
+            return validationResults;
+        }
+
+        // Group files by test case number
+        Map<String, List<String>> groupedFiles = csvFiles.stream()
+                .collect(Collectors.groupingBy(filePath -> {
+                    // Extract test case number from file path
+                    String fileName = Paths.get(filePath).getFileName().toString();
+                    // Extract the testcase number using regex
+                    // please change the grouping logic:
+                    Pattern pattern = Pattern.compile(".*-testcase(\\d+)\\.csv$");
+                    var matcher = pattern.matcher(fileName);
+                    if (matcher.find()) {
+                        return matcher.group(1); // Returns the test case number
+                    }
+                    return "unknown";
+                }));
+
+        // Process each group together
+        for (Map.Entry<String, List<String>> entry : groupedFiles.entrySet()) {
+            String testCaseNum = entry.getKey();
+            List<String> group = entry.getValue();
+
+            try {
+                log.debug("Starting CSV validation for test case {}: {}", testCaseNum, group);
+                Map<String, Object> groupResults = csvValidationService.validateCsvGroup(group);
+                validationResults.put("testcase_" + testCaseNum, groupResults);
+                log.debug("Validation results for test case {}: {}", testCaseNum, groupResults);
+            } catch (Exception e) {
+                log.error("Error validating CSV files for test case {}: {}", testCaseNum, e.getMessage(), e);
+                Map<String, Object> errorResult = new HashMap<>();
+                errorResult.put("validationError", e.getMessage());
+                errorResult.put("status", "FAILED");
+                validationResults.put("testcase_" + testCaseNum, errorResult);
+            }
+        }
+
+        return validationResults;
+    }
+
+    public Map<String, Object> validateCsvGroup(List<String> filePaths) throws Exception {
         try {
             var config = appConfig.getCsv().validation();
             if (config == null) {
                 throw new IllegalStateException("CSV validation configuration is null");
             }
 
-            // Build the command
-            List<String> command = new ArrayList<>();
-            command.add(config.pythonExecutable());
-            command.add(config.pythonScriptPath());
-            command.add(config.packagePath());
-            command.add(config.file1());
-            command.add(config.file2());
-            command.add(config.file3());
-            command.add(config.file4());
-            command.add(config.file5());
-            command.add(config.file6());
-            command.add(config.file7());
-            command.add(config.outputPath());
+            // Enhanced validation input
+            if (filePaths == null || filePaths.isEmpty()) {
+                log.error("No files provided for validation");
+                throw new IllegalArgumentException("No files provided for validation");
+            }
 
-            log.info("Executing command: {}", String.join(" ", command));
+            // Ensure the files exist and are valid using VFS before running the validation
+            List<FileObject> fileObjects = new ArrayList<>();
+            for (String filePath : filePaths) {
+                log.info("Validating file: {}", filePath);
+                FileObject file = vfsCoreService.resolveFile(filePath);
+                if (!vfsCoreService.fileExists(file)) {
+                    log.error("File not found: {}", filePath);
+                    throw new FileNotFoundException("File not found: " + filePath);
+                }
+                fileObjects.add(file);
+            }
 
-            ProcessBuilder processBuilder = createProcessBuilder();
+            // Validate and create directories
+            vfsCoreService.validateAndCreateDirectories(fileObjects.toArray(new FileObject[0]));
+
+            // Build command to run Python script
+            List<String> command = buildValidationCommand(config, filePaths);
+
+            log.info("Executing validation command: {}", String.join(" ", command));
+
+            ProcessBuilder processBuilder = new ProcessBuilder();
             processBuilder.command(command);
             processBuilder.redirectErrorStream(true);
 
             Process process = processBuilder.start();
 
-            // Read output stream
+            // Capture and handle output/error streams
             StringBuilder output = new StringBuilder();
+            StringBuilder errorOutput = new StringBuilder();
+
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     output.append(line).append("\n");
-                    log.debug("Python output: {}", line);
                 }
             }
 
-            // Read error stream
-            StringBuilder errorOutput = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+            try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
                 String line;
-                while ((line = reader.readLine()) != null) {
+                while ((line = errorReader.readLine()) != null) {
                     errorOutput.append(line).append("\n");
-                    log.error("Python error: {}", line);
                 }
             }
 
-            // Wait for the process to complete and check exit code
             int exitCode = process.waitFor();
             if (exitCode != 0) {
-                String errorMessage = String.format(
-                        "Python validation script failed with exit code: %d%nOutput: %s%nError: %s",
-                        exitCode, output, errorOutput);
-                log.error(errorMessage);
-                throw new Exception(errorMessage);
+                log.error("Python script execution failed. Exit code: {}, Error: {}",
+                        exitCode, errorOutput.toString());
+                throw new IOException("Python script execution failed with exit code " +
+                        exitCode + ": " + errorOutput.toString());
             }
-            // Return the result of the validation
-            String result = output.toString();
-            log.info("Python validation script executed successfully: {}", result);
 
-            return Map.of("result", result);
+            // Return parsed validation results
+            return parseValidationResults(output.toString());
 
-        } catch (Exception e) {
-            log.error("Error validating CSV files: {}", e.getMessage(), e);
-            throw new Exception("Failed to validate CSV files", e);
+        } catch (IOException | InterruptedException e) {
+            log.error("Error during CSV validation: {}", e.getMessage(), e);
+            throw new RuntimeException("Error during CSV validation", e);
         }
     }
+
+    private List<String> buildValidationCommand(AppConfig.CsvValidation.Validation config, List<String> filePaths) {
+        List<String> command = new ArrayList<>();
+        command.add(config.pythonExecutable());
+        command.add(config.pythonScriptPath());
+        command.add(config.packagePath());
+
+        // Add file paths to the command
+        command.addAll(filePaths);
+
+        // Pad with empty strings if fewer than 7 files
+        while (command.size() < 10) { // 1 (python) + 1 (script) + 1 (package) + 7 (files)
+            command.add("");
+        }
+
+        // Add output path
+        command.add(config.outputPath());
+
+        return command;
+    }
+
+    private Map<String, Object> parseValidationResults(String output) {
+        // Placeholder for parsing validation results
+        log.info("Validation output: {}", output);
+        Map<String, Object> results = new HashMap<>();
+        results.put("raw_output", output);
+        return results;
+    }
+
+    private String extractGroupId(FileObject file) {
+        String fileName = file.getName().getBaseName();
+        var matcher = FILE_PATTERN.matcher(fileName);
+        return matcher.matches() ? matcher.group(2) : null;
+    }
+
+    private boolean isGroupComplete(VfsIngressConsumer.IngressGroup group) {
+        if (group == null || group.groupedEntries().isEmpty()) {
+            return false;
+        }
+
+        boolean hasDemographic = false;
+        boolean hasQeAdmin = false;
+        boolean hasScreening = false;
+        // please add other files also according to command
+
+        for (VfsIngressConsumer.IngressIndividual entry : group.groupedEntries()) {
+            String fileName = entry.entry().getName().getBaseName();
+            if (fileName.startsWith("DEMOGRAPHIC_DATA")) {
+                hasDemographic = true;
+            } else if (fileName.startsWith("QE_ADMIN_DATA")) {
+                hasQeAdmin = true;
+            } else if (fileName.startsWith("SCREENING")) {
+                hasScreening = true;
+            }
+        }
+
+        return hasDemographic && hasQeAdmin && hasScreening;
+        // please add the other files according to the command
+    }
 }
+
+// please note : issue is there with the drain method
+// files are not moving to ingress from inbound by using vfs ingress
+// consumer,need to to look into it,thats we are getting Exception
