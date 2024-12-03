@@ -96,6 +96,8 @@ org:
                 python-executable: ${TECHBD_CSV_PYTHON_EXECUTABLE:python3}
                 package-path: ${TECHBD_CSV_PACKAGE_PATH:src/main/java/org/techbd/csvvalidator/datapackage-ig.json}
                 output-path: ${TECHBD_CSV_OUTPUT_PATH:src/main/java/org/techbd/csvvalidator/output/output.json}
+                inboundPath: ${TECHBD_CSV_INBOUND_PATH:hub-prime/src/main/java/org/techbd/inbound}
+                ingessHomePath: ${TECHBD_CSV_INGRESS_PATH:hub-prime/src/main/java/org/techbd/ingresshome}
                 file1: ${TECHBD_CSV_FILE1_PATH:src/main/java/org/techbd/csvvalidator/data/QE_ADMIN_DATA.csv}
                 file2: ${TECHBD_CSV_FILE2_PATH:src/main/java/org/techbd/csvvalidator/data/SCREENING_OBSERVATION_DATA.csv}
                 file3: ${TECHBD_CSV_FILE3_PATH:src/main/java/org/techbd/csvvalidator/data/SCREENING_LOCATION_DATA.csv}
@@ -144,4 +146,5 @@ org:
           idleTimeout: 300000
           connectionTimeout: 30000
           maxLifetime: 1800000
+         
    

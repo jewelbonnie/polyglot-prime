@@ -1,3 +1,4 @@
+
 package org.techbd.service;
 
 import org.apache.commons.vfs2.FileObject;
@@ -23,20 +24,20 @@ public class CsvValidationService {
     private static final Logger log = LoggerFactory.getLogger(CsvValidationService.class);
     private final AppConfig appConfig;
     private final VfsCoreService vfsCoreService;
-    CsvValidationService csvValidationService;// please remove this it can use cyclic refrence,please adopt alternative
+    private final AppConfig.CsvValidation.Validation config;
+    private final String inboundFolder;
+    private final String ingressHome;
 
-    public CsvValidationService(
-            AppConfig appConfig,
-            VfsCoreService vfsCoreService
-    // CsvValidationService csvValidationService
-    ) {
+    public CsvValidationService(AppConfig appConfig, VfsCoreService vfsCoreService) {
         this.appConfig = appConfig;
         this.vfsCoreService = vfsCoreService;
-        // this.csvValidationService = csvValidationService;
+        this.config = appConfig.getCsv().validation();
+        if (this.config == null) {
+            throw new IllegalStateException("CSV validation configuration is null");
+        }
+        this.inboundFolder = config.inboundPath();
+        this.ingressHome = config.ingessHomePath();
     }
-
-    private String inboundFolder = "path/to/inbound";
-    private String ingressHome = "path/to/ingresshome";
 
     private static final Pattern FILE_PATTERN = Pattern.compile(
             "(DEMOGRAPHIC_DATA|QE_ADMIN_DATA|SCREENING)_(.+)");
@@ -72,7 +73,7 @@ public class CsvValidationService {
 
             if (csvFiles.isEmpty()) {
                 log.warn("No CSV files found for validation. Skipping validation.");
-                return; // Or handle this scenario as needed
+                return;
             }
 
             // Validate CSV files
@@ -102,13 +103,6 @@ public class CsvValidationService {
 
         // Important: Capture the returned session UUID and processed file paths
         UUID processId = vfsCoreService.processFiles(consumer, ingresshomeFO);
-
-        // Log the processed files
-        // processedFilePaths = consumer.drain(ingresshomeFO,
-        // java.util.Optional.empty());
-        // log.info("Processed file paths from VfsIngressConsumer: {}",
-        // processedFilePaths);
-
         return processId;
         // return vfsCoreService.processFiles(consumer, ingresshomeFO);
     }
@@ -163,6 +157,7 @@ public class CsvValidationService {
                     String fileName = Paths.get(filePath).getFileName().toString();
                     // Extract the testcase number using regex
                     // please change the grouping logic:
+                    // To-do:change grouping logic
                     Pattern pattern = Pattern.compile(".*-testcase(\\d+)\\.csv$");
                     var matcher = pattern.matcher(fileName);
                     if (matcher.find()) {
@@ -178,7 +173,7 @@ public class CsvValidationService {
 
             try {
                 log.debug("Starting CSV validation for test case {}: {}", testCaseNum, group);
-                Map<String, Object> groupResults = csvValidationService.validateCsvGroup(group);
+                Map<String, Object> groupResults = validateCsvGroup(group);
                 validationResults.put("testcase_" + testCaseNum, groupResults);
                 log.debug("Validation results for test case {}: {}", testCaseNum, groupResults);
             } catch (Exception e) {
@@ -326,7 +321,3 @@ public class CsvValidationService {
         // please add the other files according to the command
     }
 }
-
-// please note : issue is there with the drain method
-// files are not moving to ingress from inbound by using vfs ingress
-// consumer,need to to look into it,thats we are getting Exception
