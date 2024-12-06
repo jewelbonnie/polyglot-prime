@@ -95,9 +95,9 @@ public class ZipProcessingTasklet implements Tasklet {
 
             // Validate CSV files
             Map<String, Object> validationResults = validateFiles(csvFiles);
-            
+            System.out.println("Validation Results: " + validationResults);
             // Save validation results
-            saveValidationResults(processId, validationResults);
+           // saveValidationResults(processId, validationResults);
             
             return RepeatStatus.FINISHED;
         } catch (Exception e) {
@@ -269,27 +269,27 @@ public class ZipProcessingTasklet implements Tasklet {
  * @param processId Session ID for the current processing
  * @param results Validation results to save
  */
-private void saveValidationResults(UUID processId, Map<String, Object> results) {
-    try {
-        // Create the output directory if it doesn't exist
-        Path outputDir = Paths.get(validationOutputPath);
-        if (!Files.exists(outputDir)) {
-            Files.createDirectories(outputDir);
-            log.info("Created output directory: {}", outputDir);
-        }
+// private void saveValidationResults(UUID processId, Map<String, Object> results) {
+//     try {
+//         // Create the output directory if it doesn't exist
+//         Path outputDir = Paths.get(validationOutputPath);
+//         if (!Files.exists(outputDir)) {
+//             Files.createDirectories(outputDir);
+//             log.info("Created output directory: {}", outputDir);
+//         }
 
-        // Create the output file path
-        Path outputFile = outputDir.resolve(processId + "_validation.json");
+//         // Create the output file path
+//         Path outputFile = outputDir.resolve(processId + "_validation.json");
         
-        // Write the results to the file
-        objectMapper.writeValue(outputFile.toFile(), results);
-        log.info("Validation results saved to: {}", outputFile);
+//         // Write the results to the file
+//         objectMapper.writeValue(outputFile.toFile(), results);
+//         log.info("Validation results saved to: {}", outputFile);
         
-    } catch (IOException e) {
-        log.error("Error saving validation results: {}", e.getMessage(), e);
-        throw new RuntimeException("Failed to save validation results: " + e.getMessage(), e);
-    }
-}
+//     } catch (IOException e) {
+//         log.error("Error saving validation results: {}", e.getMessage(), e);
+//         throw new RuntimeException("Failed to save validation results: " + e.getMessage(), e);
+//     }
+// }
 
     private String extractGroupId(FileObject file) {
         String fileName = file.getName().getBaseName();
