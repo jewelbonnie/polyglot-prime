@@ -5,6 +5,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.hl7.fhir.r4.model.Bundle;
@@ -29,6 +30,8 @@ import org.techbd.util.CsvConstants;
 import org.techbd.util.CsvConversionUtil;
 import org.techbd.util.DateUtil;
 
+import ca.uhn.fhir.context.FhirContext;
+
 @Component
 @Order(6)
 public class ScreeningResponseObservationConverter extends BaseConverter {
@@ -47,6 +50,67 @@ public class ScreeningResponseObservationConverter extends BaseConverter {
                 return ResourceType.Observation;
         }
 
+        private static final Set<String> INTERPERSONAL_SAFETY_REFS = Set.of(
+                        "95618-5",
+                        "95617-7",
+                        "95616-9",
+                        "95615-1");
+        private static final Set<String> PHYSICAL_ACTIVITY_REFS = Set.of(
+                        "89555-7",
+                        "68516-4");
+
+        private static final Set<String> MENTAL_STATE_REFS = Set.of(
+                        "44250-9",
+                        "44255-8");
+
+        private void addScoreRefs(Observation observation,
+                        ScreeningObservationData currentData,
+                        List<ScreeningObservationData> allObservations) {
+
+                // Check for interpersonal safety, physical activity, or mental state codes
+                if (!"95614-4".equals(currentData.getQuestionCode()) &&
+                                !"77594-0".equals(currentData.getQuestionCode()) &&
+                                !"71969-0".equals(currentData.getQuestionCode())) {
+                        return;
+                }
+
+                LOG.info("Processing observation with code: {}", currentData.getQuestionCode());
+
+                Set<String> relevantRefs;
+                String observationType;
+
+                // Determine which reference set to use based on question code
+                if ("95614-4".equals(currentData.getQuestionCode())) {
+                        relevantRefs = INTERPERSONAL_SAFETY_REFS;
+                        observationType = "InterpersonalSafety";
+                } else if ("77594-0".equals(currentData.getQuestionCode())) {
+                        relevantRefs = PHYSICAL_ACTIVITY_REFS;
+                        observationType = "PhysicalActivity";
+                } else {
+                        relevantRefs = MENTAL_STATE_REFS;
+                        observationType = "MentalState";
+                }
+                List<Reference> derivedFromRefs = allObservations.stream()
+                                .filter(obs -> relevantRefs.contains(obs.getQuestionCode()))
+                                .map(obs -> {
+                                        String observationId = CsvConversionUtil.sha256(
+                                                        obs.getQuestionCodeDisplay().replace(" ", "") +
+                                                                        obs.getQuestionCode());
+                                        return new Reference("Observation/" + observationId);
+                                })
+                                .collect(Collectors.toList());
+
+                if (!derivedFromRefs.isEmpty()) {
+                        observation.setDerivedFrom(derivedFromRefs);
+                        LOG.info("Added {} derived references for question code {}",
+                                        derivedFromRefs.size(), currentData.getQuestionCode());
+
+                        if (LOG.isDebugEnabled()) {
+                                derivedFromRefs.forEach(ref -> LOG.debug("Added reference: {}", ref.getReference()));
+                        }
+                }
+        }
+
         @Override
         public List<BundleEntryComponent> convert(
                         Bundle bundle,
@@ -63,6 +127,8 @@ public class ScreeningResponseObservationConverter extends BaseConverter {
 
                 for (ScreeningObservationData data : screeningObservationDataList) {
                         Observation observation = new Observation();
+                        // Add interpersonal safety references
+                        addScoreRefs(observation, data, screeningObservationDataList);
                         String observationId = CsvConversionUtil
                                         .sha256(data.getQuestionCodeDisplay().replace(" ", "") +
                                                         data.getQuestionCode());
@@ -71,7 +137,8 @@ public class ScreeningResponseObservationConverter extends BaseConverter {
                         String fullUrl = "http://shinny.org/us/ny/hrsn/Observation/" + observationId;
                         setMeta(observation);
                         Meta meta = observation.getMeta();
-                        meta.setLastUpdated(DateUtil.convertStringToDate(screeningProfileData.getScreeningLastUpdated()));
+                        meta.setLastUpdated(
+                                        DateUtil.convertStringToDate(screeningProfileData.getScreeningLastUpdated()));
                         // max date
                         // available in all
                         // screening records
@@ -126,7 +193,8 @@ public class ScreeningResponseObservationConverter extends BaseConverter {
                         observation.setSubject(new Reference("Patient/" +
                                         idsGenerated.get(CsvConstants.PATIENT_ID)));
                         if (data.getRecordedTime() != null) {
-                                observation.setEffective(new DateTimeType(DateUtil.convertStringToDate(data.getRecordedTime())));
+                                observation.setEffective(
+                                                new DateTimeType(DateUtil.convertStringToDate(data.getRecordedTime())));
                         }
                         observation.setIssued(DateUtil.convertStringToDate(data.getRecordedTime()));
                         questionAndAnswerCode.put(data.getQuestionCode(), data.getAnswerCode());
@@ -141,7 +209,8 @@ public class ScreeningResponseObservationConverter extends BaseConverter {
 
                 try {
                         return processScreeningGroups(demographicData, screeningProfileData,
-                                        screeningObservationDataList, idsGenerated, interactionId, bundleEntryComponents);
+                                        screeningObservationDataList, idsGenerated, interactionId,
+                                        bundleEntryComponents);
                 } catch (Exception e) {
                         LOG.error("Error converting screening observations for interaction {}: {}",
                                         interactionId, e.getMessage(), e);
