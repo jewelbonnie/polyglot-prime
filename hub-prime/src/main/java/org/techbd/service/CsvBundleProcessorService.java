@@ -4,11 +4,15 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.apache.commons.collections.CollectionUtils;
-import org.hl7.fhir.r4.model.Bundle;
 import org.hl7.fhir.r4.model.OperationOutcome;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,8 +34,8 @@ import org.techbd.udi.auto.jooq.ingress.routines.RegisterInteractionHttpRequest;
 import org.techbd.util.CsvConversionUtil;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.google.gson.Gson;
 
+import io.micrometer.common.util.StringUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -104,7 +108,7 @@ public class CsvBundleProcessorService {
         }
         if (CollectionUtils.isNotEmpty(filesNotProcessed)) {
             resultBundles
-                    .add(createOperationOutcomeForFileNotProcessed(masterInteractionId, tenantId, filesNotProcessed,
+                    .add(createOperationOutcomeForFileNotProcessed(masterInteractionId,  filesNotProcessed,
                             originalFileName));
         }
         return resultBundles;
@@ -148,7 +152,7 @@ public class CsvBundleProcessorService {
     }
 
     private void saveConvertedFHIR(boolean isValid, String masterInteractionId, String groupKey,
-            String groupInteractionId, final HttpServletRequest request,
+            String groupInteractionId,String interactionId, final HttpServletRequest request,
             final String payload,
             final String tenantId) {
         LOG.info(
@@ -160,7 +164,8 @@ public class CsvBundleProcessorService {
             final var dslContext = udiPrimeJpaConfig.dsl();
             final var jooqCfg = dslContext.configuration();
             initRIHR.setOrigin("http");
-            initRIHR.setInteractionId(groupInteractionId);
+            initRIHR.setInteractionId(interactionId);
+            initRIHR.setGroupHubInteractionId(groupInteractionId);
             initRIHR.setSourceHubInteractionId(masterInteractionId);
             initRIHR.setInteractionKey(request.getRequestURI());
             initRIHR.setNature((JsonNode) Configuration.objectMapper.valueToTree(
@@ -171,10 +176,10 @@ public class CsvBundleProcessorService {
             initRIHR.setCreatedAt(forwardedAt);
             initRIHR.setCreatedBy(CsvService.class.getName());
             initRIHR.setFromState(isValid ? "VALIDATION SUCCESS" : "VALIDATION FAILED");
-            initRIHR.setToState(isPayloadInstanceOfBundle(payload) ? "CONVERTED_TO_FHIR" : "FHIR_CONVERSION_FAILED");
+            initRIHR.setToState(StringUtils.isNotEmpty(payload) ? "CONVERTED_TO_FHIR" : "FHIR_CONVERSION_FAILED");
             final var provenance = "%s.saveConvertedFHIR".formatted(CsvBundleProcessorService.class.getName());
             initRIHR.setProvenance(provenance);
-            initRIHR.setCsvGroupId(groupKey);
+            initRIHR.setCsvGroupId(groupInteractionId);
             final var start = Instant.now();
             final var execResult = initRIHR.execute(jooqCfg);
             final var end = Instant.now();
@@ -190,17 +195,6 @@ public class CsvBundleProcessorService {
                     masterInteractionId, groupInteractionId,
                     tenantId,
                     e);
-        }
-    }
-
-    public boolean isPayloadInstanceOfBundle(String jsonString) {
-        try {
-            Gson gson = new Gson();
-            Bundle bundle = gson.fromJson(jsonString, Bundle.class);
-            return bundle instanceof Bundle;
-        } catch (Exception e) {
-            LOG.error("Error parsing string: " + e.getMessage());
-            return false;
         }
     }
 
@@ -283,7 +277,7 @@ public class CsvBundleProcessorService {
                         String updatedProvenance = addBundleProvenance(payloadAndValidationOutcome.provenance(),
                                 getFileNames(payloadAndValidationOutcome.fileDetails()),
                                 profile.getPatientMrIdValue(), profile.getEncounterId(), initiatedAt, completedAt);
-                        saveConvertedFHIR(isValid, masterInteractionId, groupKey, interactionId, request,
+                        saveConvertedFHIR(isValid, masterInteractionId, groupKey, groupInteractionId,interactionId, request,
                                 bundle, tenantId);
                         results.add(fhirService.processBundle(
                                 bundle, tenantId, null, null, null, null, null,
@@ -362,7 +356,6 @@ public class CsvBundleProcessorService {
 
     private Map<String, Object> createOperationOutcomeForFileNotProcessed(
             final String masterInteractionId,
-            final String inputZipFile,
             final List<String> filesNotProcessed, String originalFileName) {
         OperationOutcome operationOutcome = new OperationOutcome();
         OperationOutcome.OperationOutcomeIssueComponent issue = operationOutcome.addIssue();

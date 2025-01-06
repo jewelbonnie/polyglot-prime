@@ -213,7 +213,7 @@ public class FHIRService {
         public void validateJson(String jsonString, String interactionId) {
                 try {
                         Configuration.objectMapper.readTree(jsonString);
-                } catch (JsonProcessingException e) {
+                } catch (Exception e) {
                         throw new JsonValidationException(ErrorCode.INVALID_JSON);
                 }
         }
@@ -431,6 +431,7 @@ public class FHIRService {
                                 // continues
                                 final var immediateResult = new HashMap<>(Map.of(
                                                 "resourceType", "OperationOutcome",
+                                                "help", "If you need help understanding how to decipher OperationOutcome please see "+appConfig.getOperationOutcomeHelpUrl(),
                                                 "bundleSessionId", interactionId, // for tracking in
                                                                                   // database, etc.
                                                 "isAsync", true,

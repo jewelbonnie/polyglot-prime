@@ -236,16 +236,11 @@ AS SELECT tenant_id,
  * If an error occurs during any step, the function logs the error using the `register_issue` procedure and returns NULL.
  *******************************************************************************************************************************/
 
-
-DROP FUNCTION IF EXISTS techbd_udi_ingress.register_interaction_http_request(text, text, jsonb, text, text, jsonb, jsonb, text, text, text, text, text, text, text, text, timestamptz, text, text, bool, text, bytea, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text);
-
-DROP FUNCTION IF EXISTS techbd_udi_ingress.register_interaction_http_request(text, text, jsonb, text, text, jsonb, jsonb, text, text, text, text, text, text, text, text, timestamptz, text, text, bool, text, bytea, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text);
-
 DROP FUNCTION IF EXISTS techbd_udi_ingress.register_interaction_http_request(text, text, jsonb, text, text, jsonb, jsonb, text, text, text, text, text, text, text, text, timestamptz, text, text, bool, text, bytea, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text);
 
-DROP FUNCTION IF EXISTS techbd_udi_ingress.register_interaction_http_request(text, text, jsonb, text, text, jsonb, jsonb, text, text, text, text, text, text, text, text, timestamptz, text, text, bool, text, bytea, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text);
+DROP FUNCTION IF EXISTS techbd_udi_ingress.register_interaction_http_request(text, text, jsonb, text, text, jsonb, jsonb, text, text, text, text, text, text, text, text, timestamptz, text, text, bool, text, bytea, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text);
 
-CREATE OR REPLACE FUNCTION techbd_udi_ingress.register_interaction_http_request(interaction_id text, interaction_key text, payload jsonb DEFAULT NULL::jsonb, payload_text text DEFAULT NULL::text, rule_namespace text DEFAULT NULL::text, elaboration jsonb DEFAULT NULL::jsonb, nature jsonb DEFAULT NULL::jsonb, content_type text DEFAULT NULL::text, from_state text DEFAULT NULL::text, to_state text DEFAULT NULL::text, state_transition_reason text DEFAULT NULL::text, user_id text DEFAULT NULL::text, user_name text DEFAULT NULL::text, user_session text DEFAULT NULL::text, user_role text DEFAULT NULL::text, created_at timestamp with time zone DEFAULT NULL::timestamp with time zone, created_by text DEFAULT NULL::text, provenance text DEFAULT NULL::text, hub_upsert_behavior boolean DEFAULT true, csv_zip_file_name text DEFAULT NULL::text, csv_zip_file_content bytea DEFAULT NULL::bytea, csv_group_id text DEFAULT NULL::text, csv_status text DEFAULT NULL::text, csv_screening_observation_data_payload_text text DEFAULT NULL::text, csv_screening_profile_data_payload_text text DEFAULT NULL::text, csv_demographic_data_payload_text text DEFAULT NULL::text, csv_qe_admin_data_payload_text text DEFAULT NULL::text, csv_screening_observation_data_file_name text DEFAULT NULL::text, csv_screening_profile_data_file_name text DEFAULT NULL::text, csv_demographic_data_file_name text DEFAULT NULL::text, csv_qe_admin_data_file_name text DEFAULT NULL::text, source_hub_interaction_id text DEFAULT NULL::text, client_ip_address text DEFAULT NULL::text, user_agent text DEFAULT NULL::text, origin text DEFAULT NULL::text, source_type text DEFAULT NULL::text, group_hub_interaction_id text DEFAULT NULL::text)
+CREATE OR REPLACE FUNCTION techbd_udi_ingress.register_interaction_http_request(interaction_id text, interaction_key text, payload jsonb DEFAULT NULL::jsonb, payload_text text DEFAULT NULL::text, rule_namespace text DEFAULT NULL::text, elaboration jsonb DEFAULT NULL::jsonb, nature jsonb DEFAULT NULL::jsonb, content_type text DEFAULT NULL::text, from_state text DEFAULT NULL::text, to_state text DEFAULT NULL::text, state_transition_reason text DEFAULT NULL::text, user_id text DEFAULT NULL::text, user_name text DEFAULT NULL::text, user_session text DEFAULT NULL::text, user_role text DEFAULT NULL::text, created_at timestamp with time zone DEFAULT NULL::timestamp with time zone, created_by text DEFAULT NULL::text, provenance text DEFAULT NULL::text, hub_upsert_behavior boolean DEFAULT true, csv_zip_file_name text DEFAULT NULL::text, csv_zip_file_content bytea DEFAULT NULL::bytea, csv_group_id text DEFAULT NULL::text, csv_status text DEFAULT NULL::text, csv_screening_observation_data_payload_text text DEFAULT NULL::text, csv_screening_profile_data_payload_text text DEFAULT NULL::text, csv_demographic_data_payload_text text DEFAULT NULL::text, csv_qe_admin_data_payload_text text DEFAULT NULL::text, csv_screening_observation_data_file_name text DEFAULT NULL::text, csv_screening_profile_data_file_name text DEFAULT NULL::text, csv_demographic_data_file_name text DEFAULT NULL::text, csv_qe_admin_data_file_name text DEFAULT NULL::text, source_hub_interaction_id text DEFAULT NULL::text, client_ip_address text DEFAULT NULL::text, user_agent text DEFAULT NULL::text, origin text DEFAULT NULL::text, source_type text DEFAULT NULL::text, group_hub_interaction_id text DEFAULT NULL::text, sftp_session_id text DEFAULT NULL::text)
  RETURNS jsonb
  LANGUAGE plpgsql
 AS $function$
@@ -499,7 +494,8 @@ BEGIN
 		        zip_file_hub_interaction_id => register_interaction_http_request.source_hub_interaction_id,
 		        client_ip_address 			=> register_interaction_http_request.client_ip_address, 
 		        user_agent 					=> register_interaction_http_request.user_agent,
-		        origin						=> register_interaction_http_request.origin
+		        origin						=> register_interaction_http_request.origin,
+		        sftp_session_id				=> register_interaction_http_request.sftp_session_id
 	       	);
 	       	/*---register diagnostic log---*/
 	       	v_elaboration := jsonb_build_object(
@@ -3285,13 +3281,11 @@ GROUP BY
     organization_id,
     organization_name;  
 
-
-DROP FUNCTION IF EXISTS techbd_udi_ingress.sat_interaction_csv_request_upserted(text, text, text, text, text, bytea, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, jsonb, text, text, text, timestamptz, text, text, jsonb);
-DROP FUNCTION IF EXISTS techbd_udi_ingress.sat_interaction_csv_request_upserted(text, text, text, text, text, bytea, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, jsonb, text, text, text, timestamptz, text, text, jsonb, text);
 DROP FUNCTION IF EXISTS techbd_udi_ingress.sat_interaction_csv_request_upserted(text, text, text, text, text, bytea, text, text, text, text, text, text, text, text, text, text, jsonb, text, text, text, timestamptz, text, text, jsonb, text, text, text, text);
+DROP FUNCTION IF EXISTS techbd_udi_ingress.sat_interaction_csv_request_upserted(text, text, text, text, text, bytea, text, text, text, text, text, text, text, text, text, text, jsonb, text, text, text, timestamptz, text, text, jsonb, text, text, text, text, text);
 
 
-CREATE OR REPLACE FUNCTION techbd_udi_ingress.sat_interaction_csv_request_upserted(interaction_id text, uri text, nature text, tenant_id text DEFAULT NULL::text, csv_zip_file_name text DEFAULT NULL::text, csv_zip_file_content bytea DEFAULT NULL::bytea, group_id text DEFAULT NULL::text, status text DEFAULT NULL::text, csv_screening_observation_data_payload_text text DEFAULT NULL::text, csv_screening_profile_data_payload_text text DEFAULT NULL::text, csv_demographic_data_payload_text text DEFAULT NULL::text, csv_qe_admin_data_payload_text text DEFAULT NULL::text, csv_screening_observation_data_file_name text DEFAULT NULL::text, csv_screening_profile_data_file_name text DEFAULT NULL::text, csv_demographic_data_file_name text DEFAULT NULL::text, csv_qe_admin_data_file_name text DEFAULT NULL::text, validation_result_payload jsonb DEFAULT NULL::jsonb, from_state text DEFAULT NULL::text, to_state text DEFAULT NULL::text, state_transition_reason text DEFAULT NULL::text, created_at timestamp with time zone DEFAULT NULL::timestamp with time zone, created_by text DEFAULT NULL::text, provenance text DEFAULT NULL::text, elaboration jsonb DEFAULT NULL::jsonb, zip_file_hub_interaction_id text DEFAULT NULL::text, client_ip_address text DEFAULT NULL::text, user_agent text DEFAULT NULL::text, origin text DEFAULT NULL::text)
+CREATE OR REPLACE FUNCTION techbd_udi_ingress.sat_interaction_csv_request_upserted(interaction_id text, uri text, nature text, tenant_id text DEFAULT NULL::text, csv_zip_file_name text DEFAULT NULL::text, csv_zip_file_content bytea DEFAULT NULL::bytea, group_id text DEFAULT NULL::text, status text DEFAULT NULL::text, csv_screening_observation_data_payload_text text DEFAULT NULL::text, csv_screening_profile_data_payload_text text DEFAULT NULL::text, csv_demographic_data_payload_text text DEFAULT NULL::text, csv_qe_admin_data_payload_text text DEFAULT NULL::text, csv_screening_observation_data_file_name text DEFAULT NULL::text, csv_screening_profile_data_file_name text DEFAULT NULL::text, csv_demographic_data_file_name text DEFAULT NULL::text, csv_qe_admin_data_file_name text DEFAULT NULL::text, validation_result_payload jsonb DEFAULT NULL::jsonb, from_state text DEFAULT NULL::text, to_state text DEFAULT NULL::text, state_transition_reason text DEFAULT NULL::text, created_at timestamp with time zone DEFAULT NULL::timestamp with time zone, created_by text DEFAULT NULL::text, provenance text DEFAULT NULL::text, elaboration jsonb DEFAULT NULL::jsonb, zip_file_hub_interaction_id text DEFAULT NULL::text, client_ip_address text DEFAULT NULL::text, user_agent text DEFAULT NULL::text, origin text DEFAULT NULL::text, sftp_session_id text DEFAULT NULL::text)
 
  RETURNS text
  LANGUAGE plpgsql
@@ -3338,7 +3332,7 @@ BEGIN
 	        sat_interaction_zip_file_request_id, hub_interaction_id, tenant_id, tenant_id_lower, uri, nature,
 	        group_id, status, csv_zip_file_name, csv_zip_file_content,
 			client_ip_address, user_agent,
-			elaboration, created_at, created_by, provenance, validation_result_payload, origin
+			elaboration, created_at, created_by, provenance, validation_result_payload, origin, sftp_session_id
 	    )
 	    VALUES (
 	        gen_random_uuid()::TEXT,  -- Generate a unique UUID for the primary key
@@ -3355,7 +3349,8 @@ BEGIN
 			client_ip_address, user_agent,
 			NULL, v_created_at, v_created_by, v_provenance, 
 			sat_interaction_csv_request_upserted.validation_result_payload, 
-			sat_interaction_csv_request_upserted.origin
+			sat_interaction_csv_request_upserted.origin,
+            sat_interaction_csv_request_upserted.sftp_session_id
 	    ) RETURNING sat_interaction_zip_file_request_id INTO v_return;  -- Return the generated UUID
 	    
 	    /*---register diagnostic log---*/
@@ -3825,7 +3820,7 @@ FROM
 JOIN
     techbd_udi_ingress.sat_interaction_flat_file_csv_request siffcr
     ON sizfr.hub_interaction_id = siffcr.zip_file_hub_interaction_id 
-    AND siffcr.nature = 'Original Flat File CSV'
+     AND (siffcr.nature = 'Original Flat File CSV'::text or siffcr.nature = 'CSV Validation Result'::text)
 LEFT JOIN
     fhir_summary
     ON sizfr.hub_interaction_id = fhir_summary.source_hub_interaction_id
@@ -3924,3 +3919,55 @@ AS SELECT sat_interaction_fhir_request_id,
     source_hub_interaction_id
    FROM techbd_udi_ingress.sat_interaction_fhir_request intr_hreq
 WHERE to_state = 'FAIL'::text AND source_type = 'CSV';
+
+
+/*****************************************
+This view extracts error details from CSV validation payloads in `sat_interaction_flat_file_csv_request`. 
+It includes fields like `fieldName`, `cell`, `title`, `message`, `description`, `rowNumber`, and `fieldNumber`. 
+The `file_name` is determined based on the section type. Only validation results with errors are included, 
+sorted by `created_at` in descending order.
+*****************************************/
+
+
+DROP VIEW IF EXISTS techbd_udi_ingress.https_csv_validation_errors CASCADE;
+CREATE OR REPLACE VIEW techbd_udi_ingress.https_csv_validation_errors
+AS   
+SELECT 
+    sifcr.created_at,
+    sifcr.tenant_id,
+    sifcr.uri,
+    sifcr.zip_file_hub_interaction_id, 
+    tasks.value ->> 'name' AS section,
+    error_payload.value ->> 'fieldName'::text AS fieldname,
+    error_payload.value ->> 'cell'::text AS value,
+    error_payload.value ->> 'title'::text AS error_type,
+    error_payload.value ->> 'message'::text AS error,
+    error_payload.value ->> 'description'::text AS description,
+    (error_payload.value ->> 'rowNumber'::text)::integer AS rownumber,
+    (error_payload.value ->> 'fieldNumber'::text)::integer AS fieldnumber,
+    CASE 
+        WHEN tasks.value ->> 'name' = 'qe_admin_data' THEN original_csv.qe_admin_data_file_name
+        WHEN tasks.value ->> 'name' = 'demographic_data' THEN original_csv.demographic_data_file_name
+        WHEN tasks.value ->> 'name' = 'screening_observation_data' THEN original_csv.screening_observation_data_file_name
+        WHEN tasks.value ->> 'name' = 'screening_profile_data' THEN original_csv.screening_profile_data_file_name
+        ELSE NULL
+    END AS file_name
+FROM 
+    techbd_udi_ingress.sat_interaction_flat_file_csv_request sifcr
+    LEFT JOIN techbd_udi_ingress.sat_interaction_flat_file_csv_request original_csv
+        ON sifcr.hub_interaction_id = original_csv.hub_interaction_id
+        AND original_csv.nature = 'Original Flat File CSV',
+    LATERAL jsonb_array_elements(
+        ((sifcr.validation_result_payload -> 'validationResults'::text) -> 'report'::text) -> 'tasks'::text
+    ) tasks(value),
+    LATERAL jsonb_array_elements(tasks.value -> 'errors'::text) error_payload(value)
+WHERE 
+    sifcr.nature = 'CSV Validation Result'::text 
+    AND sifcr.uri = ANY (ARRAY[
+        '/flatfile/csv/Bundle'::text, 
+        '/flatfile/csv/Bundle/'::text, 
+        '/flatfile/csv/Bundle/$validate'::text, 
+        '/flatfile/csv/Bundle/$validate/'::text
+    ])
+    AND (((((sifcr.validation_result_payload -> 'validationResults'::text) -> 'report'::text) -> 'stats'::text) ->> 'errors'::text)::integer) > 0
+   order by  sifcr.created_at DESC ;

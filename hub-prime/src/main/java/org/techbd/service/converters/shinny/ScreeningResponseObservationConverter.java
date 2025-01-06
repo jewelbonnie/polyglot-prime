@@ -16,6 +16,7 @@ import org.hl7.fhir.r4.model.Coding;
 import org.hl7.fhir.r4.model.DateTimeType;
 import org.hl7.fhir.r4.model.Meta;
 import org.hl7.fhir.r4.model.Observation;
+import org.hl7.fhir.r4.model.Quantity;
 import org.hl7.fhir.r4.model.Reference;
 import org.hl7.fhir.r4.model.ResourceType;
 import org.slf4j.Logger;
@@ -44,6 +45,25 @@ public class ScreeningResponseObservationConverter extends BaseConverter {
         private static final String SDOH_CATEGORY_URL = "http://hl7.org/fhir/us/sdoh-clinicalcare/CodeSystem/SDOHCC-CodeSystemTemporaryCodes";
         private static final String LOINC_URL = "http://loinc.org";
         private static final String PROFILE_URL = "http://shinny.org/us/ny/hrsn/StructureDefinition/shinny-observation-screening-response";
+
+        private static final Set<String> INTERPERSONAL_SAFETY_REFS = Set.of(
+                        "95618-5",
+                        "95617-7",
+                        "95616-9",
+                        "95615-1");
+
+        private static final Set<String> PHYSICAL_ACTIVITY_REFS = Set.of(
+                        "89555-7",
+                        "68516-4");
+
+        private static final Set<String> MENTAL_STATE_REFS = Set.of(
+                        "44250-9",
+                        "44255-8");
+
+        private static final Map<String, Set<String>> QUESTION_CODE_REF_MAP = Map.of(
+                        "95614-4", INTERPERSONAL_SAFETY_REFS,
+                        "77594-0", PHYSICAL_ACTIVITY_REFS,
+                        "71969-0", MENTAL_STATE_REFS);
 
         @Override
         public ResourceType getResourceType() {
@@ -124,6 +144,7 @@ public class ScreeningResponseObservationConverter extends BaseConverter {
                 LOG.info("ScreeningResponseObservationConverter::convert BEGIN for interaction id: {}", interactionId);
                 Map<String, String> questionAndAnswerCode = new HashMap<>();
                 List<BundleEntryComponent> bundleEntryComponents = new ArrayList<>();
+                Map<String, List<Reference>> derivedFromMap = new HashMap<>();
 
                 for (ScreeningObservationData data : screeningObservationDataList) {
                         Observation observation = new Observation();
@@ -131,7 +152,7 @@ public class ScreeningResponseObservationConverter extends BaseConverter {
                         addScoreRefs(observation, data, screeningObservationDataList);
                         String observationId = CsvConversionUtil
                                         .sha256(data.getQuestionCodeDisplay().replace(" ", "") +
-                                                        data.getQuestionCode());
+                                                        data.getQuestionCode() + data.getEncounterId());
                         observation.setId(observationId);
                         data.setObservationId(observationId);
                         String fullUrl = "http://shinny.org/us/ny/hrsn/Observation/" + observationId;
@@ -198,6 +219,61 @@ public class ScreeningResponseObservationConverter extends BaseConverter {
                         }
                         observation.setIssued(DateUtil.convertStringToDate(data.getRecordedTime()));
                         questionAndAnswerCode.put(data.getQuestionCode(), data.getAnswerCode());
+
+                        switch (data.getQuestionCode()) {
+                                case "95614-4" ->  { // Interpersonal safety
+                                        CodeableConcept coding = new CodeableConcept();
+                                        coding.addCoding(new Coding("http://unitsofmeasure.org", null,
+                                                        "{Number}"));
+                                        coding.setText(data.getAnswerCodeDescription());
+                                        observation.setValue(coding);
+
+                                }
+                                case "77594-0" ->  { // Physical Activity
+                                        Quantity quantity = new Quantity();
+                                        quantity.setValue(Double.parseDouble(data.getAnswerCodeDescription()));
+                                        quantity.setUnit("minutes per week");
+                                        quantity.setSystem("http://unitsofmeasure.org");
+                                        observation.setValue(quantity);
+                                }
+
+                                case "71969-0" ->  { // Mental state
+                                        CodeableConcept coding = new CodeableConcept();
+                                        coding.addCoding(new Coding("http://unitsofmeasure.org", null,
+                                                        "{Number}"));
+                                        coding.setText(data.getAnswerCodeDescription());
+                                        observation.setValue(coding);
+
+                                }
+                                default -> {
+                        }
+
+                        }
+
+                        if (QUESTION_CODE_REF_MAP.containsKey(data.getQuestionCode())) {
+                                Set<String> questionCodeSet = QUESTION_CODE_REF_MAP.get(data.getQuestionCode());
+                                List<Reference> derivedFromRefs = screeningObservationDataList.stream()
+                                                .filter(obs -> questionCodeSet.contains(obs.getQuestionCode()))
+                                                .map(obs -> {
+                                                        String derivedFromId = CsvConversionUtil.sha256(
+                                                                        obs.getQuestionCodeDisplay().replace(" ", "") +
+                                                                                        obs.getQuestionCode()
+                                                                                        + obs.getEncounterId());
+                                                        return new Reference("Observation/" + derivedFromId);
+                                                })
+                                                .collect(Collectors.toList());
+                                derivedFromMap.put(observationId, derivedFromRefs);
+                        }
+                        List<Reference> derivedRefs = derivedFromMap.get(observationId);
+
+                        if (derivedRefs != null && !derivedRefs.isEmpty()) {
+                                observation.setDerivedFrom(derivedRefs);
+                                if (LOG.isDebugEnabled()) {
+                                        derivedRefs.forEach(
+                                                        ref -> LOG.debug("Added reference {} for the observation {}",
+                                                                        ref.getReference(), observationId));
+                                }
+                        }
 
                         BundleEntryComponent entry = new BundleEntryComponent();
                         entry.setFullUrl(fullUrl);
@@ -274,7 +350,7 @@ public class ScreeningResponseObservationConverter extends BaseConverter {
                         String interactionId) {
 
                 Observation groupObservation = new Observation();
-                String observationId = CsvConversionUtil.sha256("group-" + screeningCode);
+                String observationId = CsvConversionUtil.sha256("group-" + screeningCode + screeningProfileData.getEncounterId());
                 groupObservation.setId(observationId);
 
                 // Set meta information
