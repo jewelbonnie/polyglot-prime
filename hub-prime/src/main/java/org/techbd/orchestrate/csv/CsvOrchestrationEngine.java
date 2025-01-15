@@ -204,7 +204,7 @@ public class CsvOrchestrationEngine {
         private final MultipartFile file;
         private Map<String, Object> validationResults;
         private List<String> filesNotProcessed;
-        private Map<String, PayloadAndValidationOutcome> payloadAndValidationOutcomes;
+        private final Map<String, PayloadAndValidationOutcome> payloadAndValidationOutcomes;
         private final String tenantId;
         HttpServletRequest request;
         private final boolean generateBundle;
@@ -212,7 +212,7 @@ public class CsvOrchestrationEngine {
         public OrchestrationSession(final String sessionId, final String tenantId, final Device device,
                 final MultipartFile file,
                 final String masterInteractionId,
-                final HttpServletRequest request, boolean generateBundle) {
+                final HttpServletRequest request, final boolean generateBundle) {
             this.sessionId = sessionId;
             this.tenantId = tenantId;
             this.device = device;
@@ -348,26 +348,26 @@ public class CsvOrchestrationEngine {
             }
         }
 
-        public static boolean extractValidValue(Map<String, Object> input) {
+        public static boolean extractValidValue(final Map<String, Object> input) {
             if (input == null || !input.containsKey("validationResults")) {
                 return false;
             }
 
-            Object validationResults = input.get("validationResults");
+            final Object validationResults = input.get("validationResults");
 
             if (validationResults instanceof ObjectNode) {
-                ObjectNode validationResultsNode = (ObjectNode) validationResults;
+                final ObjectNode validationResultsNode = (ObjectNode) validationResults;
 
                 // Check if errorSummary exists and is empty
-                JsonNode errorsSummaryNode = validationResultsNode.get("errorsSummary");
+                final JsonNode errorsSummaryNode = validationResultsNode.get("errorsSummary");
                 if (errorsSummaryNode != null && errorsSummaryNode.isArray() && errorsSummaryNode.size() > 0) {
                     return false; // Return false if errorsSummary is not empty
                 }
 
                 // Check the "report" node
-                JsonNode reportNode = validationResultsNode.get("report");
+                final JsonNode reportNode = validationResultsNode.get("report");
                 if (reportNode != null && reportNode.isObject()) {
-                    JsonNode validNode = reportNode.get("valid");
+                    final JsonNode validNode = reportNode.get("valid");
                     if (validNode != null && validNode.isBoolean()) {
                         return validNode.asBoolean();
                     }
@@ -467,7 +467,7 @@ public class CsvOrchestrationEngine {
          * @return A map representing the "provenance" object, or an empty map if
          *         "provenance" is not found.
          */
-        public static Map<String, Object> extractProvenance(Map<String, Object> operationOutcomeForThisGroup) {
+        public static Map<String, Object> extractProvenance(final Map<String, Object> operationOutcomeForThisGroup) {
             return Optional.ofNullable(operationOutcomeForThisGroup)
                     .map(map -> (Map<String, Object>) map.get("provenance"))
                     .orElse(Map.of());
@@ -495,7 +495,7 @@ public class CsvOrchestrationEngine {
                 final String originalFileName, final List<Map<String, Object>> combinedValidationResult)
                 throws Exception {
 
-            Map<String, Object> result = new HashMap<>();
+            final Map<String, Object> result = new HashMap<>();
 
             final String userAgent = request.getHeader("User-Agent");
             final Device device = Device.INSTANCE;
@@ -570,10 +570,10 @@ public class CsvOrchestrationEngine {
                 final List<String> csvFiles = scanForCsvFiles(processedDir, masterInteractionId);
 
                 final Map<String, List<FileDetail>> groupedFiles = FileProcessor.processAndGroupFiles(csvFiles);
-                List<Map<String, Object>> combinedValidationResults = new ArrayList<>();
+                final List<Map<String, Object>> combinedValidationResults = new ArrayList<>();
 
-                for (Map.Entry<String, List<FileDetail>> entry : groupedFiles.entrySet()) {
-                    String groupKey = entry.getKey();
+                for (final Map.Entry<String, List<FileDetail>> entry : groupedFiles.entrySet()) {
+                    final String groupKey = entry.getKey();
                     if (groupKey.equals("filesNotProcessed")) {
                         this.filesNotProcessed = entry.getValue().stream().map(FileDetail::filename).toList();
                         combinedValidationResults.add(
@@ -581,7 +581,7 @@ public class CsvOrchestrationEngine {
                                         masterInteractionId, this.filesNotProcessed, originalFileName));
                         continue;
                     }
-                    List<FileDetail> fileDetails = entry.getValue();
+                    final List<FileDetail> fileDetails = entry.getValue();
                     Map<String, Object> operationOutcomeForThisGroup;
                     final String groupInteractionId = UUID.randomUUID().toString();
                     if (isGroupComplete(fileDetails)) {
@@ -604,7 +604,7 @@ public class CsvOrchestrationEngine {
                                         operationOutcomeForThisGroup));
                     }
                 }
-                Instant completedAt = Instant.now();
+                final Instant completedAt = Instant.now();
                 return generateValidationResults(masterInteractionId, request,
                         file.getSize(), initiatedAt, completedAt, originalFileName, combinedValidationResults);
             } catch (final Exception e) {
@@ -615,26 +615,26 @@ public class CsvOrchestrationEngine {
 
         private Map<String, Object> createOperationOutcomeForFileNotProcessed(
                 final String masterInteractionId,
-                final List<String> filesNotProcessed, String originalFileName) {
-            OperationOutcome operationOutcome = new OperationOutcome();
-            OperationOutcome.OperationOutcomeIssueComponent issue = operationOutcome.addIssue();
+                final List<String> filesNotProcessed, final String originalFileName) {
+            final OperationOutcome operationOutcome = new OperationOutcome();
+            final OperationOutcome.OperationOutcomeIssueComponent issue = operationOutcome.addIssue();
             issue.setSeverity(OperationOutcome.IssueSeverity.ERROR);
             issue.setCode(OperationOutcome.IssueType.NOTFOUND);
 
-            StringBuilder diagnosticsMessage = new StringBuilder();
+            final StringBuilder diagnosticsMessage = new StringBuilder();
 
             if (filesNotProcessed != null && !filesNotProcessed.isEmpty()) {
                 diagnosticsMessage.append("Files not processed: in input zip file : ");
                 diagnosticsMessage.append(String.join(", ", filesNotProcessed));
-                StringBuilder remediation = new StringBuilder();
+                final StringBuilder remediation = new StringBuilder();
                 remediation.append("Filenames must start with one of the following prefixes: ");
-                for (FileType type : FileType.values()) {
+                for (final FileType type : FileType.values()) {
                     remediation.append(type.name()).append(", ");
                 }
                 if (remediation.length() > 0) {
                     remediation.setLength(remediation.length() - 2);
                 }
-                Map<String, Object> issueDetails = Map.of(
+                final Map<String, Object> issueDetails = Map.of(
                         "severity", "ERROR",
                         "code", "NOTFOUND",
                         "diagnostics", diagnosticsMessage.toString(),
@@ -651,13 +651,13 @@ public class CsvOrchestrationEngine {
         }
 
         // Move this method outside of processScreenings
-        public boolean isGroupComplete(List<FileDetail> fileDetails) {
-            Set<FileType> presentFileTypes = fileDetails.stream()
+        public boolean isGroupComplete(final List<FileDetail> fileDetails) {
+            final Set<FileType> presentFileTypes = fileDetails.stream()
                     .map(FileDetail::fileType)
                     .collect(Collectors.toSet());
 
             // Define required file types
-            Set<FileType> requiredFileTypes = Set.of(
+            final Set<FileType> requiredFileTypes = Set.of(
                     FileType.QE_ADMIN_DATA,
                     FileType.SCREENING_OBSERVATION_DATA,
                     FileType.SCREENING_PROFILE_DATA,
@@ -667,38 +667,38 @@ public class CsvOrchestrationEngine {
         }
 
         private Map<String, Object> createIncompleteGroupOperationOutcome(
-                String groupKey,
-                List<FileDetail> fileDetails,
-                String originalFileName,
-                String masterInteractionId) throws Exception {
+                final String groupKey,
+                final List<FileDetail> fileDetails,
+                final String originalFileName,
+                final String masterInteractionId) throws Exception {
 
-            Instant initiatedAt = Instant.now();
-            String groupInteractionId = UUID.randomUUID().toString();
+            final Instant initiatedAt = Instant.now();
+            final String groupInteractionId = UUID.randomUUID().toString();
 
             // Determine missing file types
-            Set<FileType> requiredFileTypes = Set.of(
+            final Set<FileType> requiredFileTypes = Set.of(
                     FileType.QE_ADMIN_DATA,
                     FileType.SCREENING_OBSERVATION_DATA,
                     FileType.SCREENING_PROFILE_DATA,
                     FileType.DEMOGRAPHIC_DATA);
 
-            Set<FileType> presentFileTypes = fileDetails.stream()
+            final Set<FileType> presentFileTypes = fileDetails.stream()
                     .map(FileDetail::fileType)
                     .collect(Collectors.toSet());
 
-            Set<FileType> missingFileTypes = new HashSet<>(requiredFileTypes);
+            final Set<FileType> missingFileTypes = new HashSet<>(requiredFileTypes);
             missingFileTypes.removeAll(presentFileTypes);
 
-            Map<String, Object> operationOutcome = new HashMap<>();
+            final Map<String, Object> operationOutcome = new HashMap<>();
             operationOutcome.put("resourceType", "OperationOutcome");
             operationOutcome.put("interactionId", masterInteractionId);
 
             // Validation Results with Detailed Errors
-            Map<String, Object> validationResults = new HashMap<>();
-            List<Map<String, Object>> errors = new ArrayList<>();
+            final Map<String, Object> validationResults = new HashMap<>();
+            final List<Map<String, Object>> errors = new ArrayList<>();
 
-            for (FileType missingType : missingFileTypes) {
-                Map<String, Object> error = new HashMap<>();
+            for (final FileType missingType : missingFileTypes) {
+                final Map<String, Object> error = new HashMap<>();
                 error.put("type", "missing-file-error");
                 error.put("description", "Input file received is invalid.");
                 error.put("message",
@@ -710,16 +710,16 @@ public class CsvOrchestrationEngine {
             operationOutcome.put("validationResults", validationResults);
 
             // Provenance Details
-            Map<String, Object> provenance = new HashMap<>();
+            final Map<String, Object> provenance = new HashMap<>();
             provenance.put("resourceType", "Provenance");
             provenance.put("interactionId", groupInteractionId);
 
             // Agent Details
-            List<Map<String, Object>> agents = new ArrayList<>();
-            Map<String, Object> agent = new HashMap<>();
-            Map<String, Object> who = new HashMap<>();
-            List<Map<String, Object>> coding = new ArrayList<>();
-            Map<String, Object> agentCoding = new HashMap<>();
+            final List<Map<String, Object>> agents = new ArrayList<>();
+            final Map<String, Object> agent = new HashMap<>();
+            final Map<String, Object> who = new HashMap<>();
+            final List<Map<String, Object>> coding = new ArrayList<>();
+            final Map<String, Object> agentCoding = new HashMap<>();
             agentCoding.put("system", "Validator");
             agentCoding.put("display", "TechByDesign");
             coding.add(agentCoding);
@@ -733,7 +733,7 @@ public class CsvOrchestrationEngine {
             provenance.put("description", "Validation of files in " + originalFileName);
 
             // Validated Files
-            List<String> validatedFiles = fileDetails.stream()
+            final List<String> validatedFiles = fileDetails.stream()
                     .map(FileDetail::filename)
                     .collect(Collectors.toList());
             provenance.put("validatedFiles", validatedFiles);
@@ -750,10 +750,10 @@ public class CsvOrchestrationEngine {
             return operationOutcome;
         }
 
-        private Map<String, Object> validateScreeningGroup(String groupInteractionId, String groupKey,
-                List<FileDetail> fileDetails,
-                String originalFileName) throws Exception {
-            Instant initiatedAtForThisGroup = Instant.now();
+        private Map<String, Object> validateScreeningGroup(final String groupInteractionId, final String groupKey,
+                final List<FileDetail> fileDetails,
+                final String originalFileName) throws Exception {
+            final Instant initiatedAtForThisGroup = Instant.now();
 
             // Log the group being processed
             log.info("Processing group {} with {} files for interactionId: {}", groupKey, fileDetails.size(),
@@ -761,10 +761,10 @@ public class CsvOrchestrationEngine {
             saveScreeningGroup(groupInteractionId, request, file, fileDetails, tenantId);
 
             // Validate CSV files inside the group
-            String validationResults = validateCsvUsingPython(fileDetails, masterInteractionId);
-            Instant completedAtForThisGroup = Instant.now();
+            final String validationResults = validateCsvUsingPython(fileDetails, masterInteractionId);
+            final Instant completedAtForThisGroup = Instant.now();
 
-            Map<String, Object> operationOutomeForThisGroup = createOperationOutcome(masterInteractionId,
+            final Map<String, Object> operationOutomeForThisGroup = createOperationOutcome(masterInteractionId,
                     groupInteractionId, validationResults, fileDetails,
                     request,
                     file.getSize(), initiatedAtForThisGroup, completedAtForThisGroup, originalFileName);
@@ -821,7 +821,7 @@ public class CsvOrchestrationEngine {
             return processId;
         }
 
-        private List<String> scanForCsvFiles(final FileObject processedDir, String interactionId)
+        private List<String> scanForCsvFiles(final FileObject processedDir, final String interactionId)
                 throws FileSystemException {
             final List<String> csvFiles = new ArrayList<>();
 
@@ -918,31 +918,31 @@ public class CsvOrchestrationEngine {
                 }
 
                 // Fetch CSV configuration from AppConfig
-                Csvs cs = appConfig.getCsvs();
-                String baseUrl = cs.baseUrl();
-                String endpoint = cs.endpoint();
+                final Csvs cs = appConfig.getCsvs();
+                final var baseUrl = cs.baseUrl();
+                final var endpoint = cs.endpoint();
 
                 // Log URL information for debugging
                 log.info("Using baseUrl: {}, endpoint: {}", baseUrl, endpoint);
 
                 // Create WebClient instance
-                WebClient webClient = WebClient.builder()
+                final WebClient webClient = WebClient.builder()
                         .baseUrl(baseUrl)
                         .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.MULTIPART_FORM_DATA_VALUE)
                         .build();
 
                 // Prepare multipart form data
-                MultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
-                Set<String> requiredFields = new HashSet<>(Arrays.asList(
+                final MultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
+                final Set<String> requiredFields = new HashSet<>(Arrays.asList(
                         "QE_ADMIN_DATA_FILE",
                         "SCREENING_PROFILE_DATA_FILE",
                         "SCREENING_OBSERVATION_DATA_FILE",
                         "DEMOGRAPHIC_DATA_FILE"));
 
-                for (FileDetail fileDetail : fileDetails) {
-                    String fieldName = determineFieldName(fileDetail.filename());
+                for (final FileDetail fileDetail : fileDetails) {
+                    final var fieldName = determineFieldName(fileDetail.filename());
                     if (fieldName != null) {
-                        byte[] fileBytes = fileDetail.content().getBytes(StandardCharsets.UTF_8);
+                        final byte[] fileBytes = fileDetail.content().getBytes(StandardCharsets.UTF_8);
                         formData.add(fieldName, new ByteArrayResource(fileBytes) {
                             @Override
                             public String getFilename() {
@@ -954,13 +954,13 @@ public class CsvOrchestrationEngine {
                 }
 
                 if (!requiredFields.isEmpty()) {
-                    String missingFields = String.join(", ", requiredFields);
+                    final var missingFields = String.join(", ", requiredFields);
                     log.error("Missing required files: {}", missingFields);
                     throw new IllegalArgumentException("Missing required files: " + missingFields);
                 }
 
                 //POST request with streaming response handling
-                String response = webClient.post()
+                final var response = webClient.post()
                         .uri(endpoint)
                         .bodyValue(formData)
                         .retrieve()
@@ -976,13 +976,13 @@ public class CsvOrchestrationEngine {
                 log.info("CsvService : validateCsvUsingPython END for interactionId : {}", interactionId);
                 return response;
 
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 log.error("Error during CSV validation: {}", e.getMessage(), e);
                 throw new RuntimeException("Error during CSV validation", e);
             }
         }
 
-        private String determineFieldName(String filename) {
+        private String determineFieldName(final String filename) {
             if (filename.startsWith("QE_ADMIN_DATA_")) {
                 return "QE_ADMIN_DATA_FILE";
             } else if (filename.startsWith("SCREENING_PROFILE_DATA_")) {
