@@ -1,10 +1,6 @@
 package org.techbd.orchestrate.csv;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.FileSystemException;
@@ -30,7 +26,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.commons.vfs2.FileObject;
-import org.hl7.fhir.r4.model.OperationOutcome;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -57,6 +52,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotNull;
 import lib.aide.vfs.VfsIngressConsumer;
 
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+
 /**
  * The {@code OrchestrationEngine} class is responsible for managing and
  * orchestrating CSV validation sessions.
@@ -67,16 +65,21 @@ public class CsvOrchestrationEngine {
     private final AppConfig appConfig;
     private final VfsCoreService vfsCoreService;
     private final UdiPrimeJpaConfig udiPrimeJpaConfig;
+    private final CsvValidationStrategy validationStrategy;
     private static final Logger log = LoggerFactory.getLogger(CsvOrchestrationEngine.class);
     private static final Pattern FILE_PATTERN = Pattern.compile(
             "(DEMOGRAPHIC_DATA|QE_ADMIN_DATA|SCREENING)_(.+)");
 
     public CsvOrchestrationEngine(final AppConfig appConfig, final VfsCoreService vfsCoreService,
-            final UdiPrimeJpaConfig udiPrimeJpaConfig, final FHIRService fhirService) {
+            final UdiPrimeJpaConfig udiPrimeJpaConfig, final FHIRService fhirService,
+            @Value("${org.techbd.service.http.hub.prime.csv.validator:pythonExecutor}") String validatorType,
+            @Qualifier("pythonExecutor") CsvValidationStrategy executorStrategy,
+            @Qualifier("pythonService") CsvValidationStrategy serviceStrategy) {
         this.sessions = new ArrayList<>();
         this.appConfig = appConfig;
         this.vfsCoreService = vfsCoreService;
         this.udiPrimeJpaConfig = udiPrimeJpaConfig;
+        this.validationStrategy = "pythonExecutor".equals(validatorType) ? executorStrategy : serviceStrategy;
     }
 
     public List<OrchestrationSession> getSessions() {
@@ -893,114 +896,8 @@ public class CsvOrchestrationEngine {
         // return validationResults;
         // }
 
-        public String validateCsvUsingPython(final List<FileDetail> fileDetails, final String interactionId)
-                throws Exception {
-            log.info("CsvService : validateCsvUsingPython BEGIN for interactionId :{} " + interactionId);
-            try {
-                final var config = appConfig.getCsv().validation();
-                if (config == null) {
-                    throw new IllegalStateException("CSV validation configuration is null");
-                }
-
-                // Enhanced validation input
-                if (fileDetails == null || fileDetails.isEmpty()) {
-                    log.error("No files provided for validation");
-                    throw new IllegalArgumentException("No files provided for validation");
-                }
-
-                // Ensure the files exist and are valid using VFS before running the validation
-                final List<FileObject> fileObjects = new ArrayList<>();
-                for (final FileDetail fileDetail : fileDetails) {
-                    log.info("Validating file: {}", fileDetail);
-                    final FileObject file = vfsCoreService.resolveFile(fileDetail.filePath());
-                    if (!vfsCoreService.fileExists(file)) {
-                        log.error("File not found: {}", fileDetail.filePath());
-                        throw new FileNotFoundException("File not found: " + fileDetail.filePath());
-                    }
-                    fileObjects.add(file);
-                }
-
-                // Validate and create directories
-                vfsCoreService.validateAndCreateDirectories(fileObjects.toArray(new FileObject[0]));
-
-                // Build command to run Python script
-                final List<String> command = buildValidationCommand(config, fileDetails);
-
-                log.info("Executing validation command: {}", String.join(" ", command));
-
-                final ProcessBuilder processBuilder = new ProcessBuilder();
-                processBuilder.directory(new File(fileDetails.get(0).filePath()).getParentFile());
-                processBuilder.command(command);
-                processBuilder.redirectErrorStream(true);
-
-                final Process process = processBuilder.start();
-
-                // Capture and handle output/error streams
-                final StringBuilder output = new StringBuilder();
-                final StringBuilder errorOutput = new StringBuilder();
-
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                    String line;
-
-                    while ((line = reader.readLine()) != null) {
-                        log.info("argument : " + line);
-                        output.append(line).append("\n");
-                    }
-                }
-
-                try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
-                    String line;
-                    while ((line = errorReader.readLine()) != null) {
-                        errorOutput.append(line).append("\n");
-                    }
-                }
-
-                final int exitCode = process.waitFor();
-                if (exitCode != 0) {
-                    log.error("Python script execution failed. Exit code: {}, Error: {}",
-                            exitCode, errorOutput.toString());
-                    throw new IOException("Python script execution failed with exit code " +
-                            exitCode + ": " + errorOutput.toString());
-                }
-                log.info("CsvService : validateCsvUsingPython END for interactionId :{} " + interactionId);
-                // Return parsed validation results
-                return output.toString();
-
-            } catch (IOException | InterruptedException e) {
-                log.error("Error during CSV validation: {}", e.getMessage(), e);
-                throw new RuntimeException("Error during CSV validation", e);
-            }
-        }
-
-        private List<String> buildValidationCommand(final AppConfig.CsvValidation.Validation config,
-                final List<FileDetail> fileDetails) {
-            final List<String> command = new ArrayList<>();
-            command.add(config.pythonExecutable());
-            command.add("validate-nyher-fhir-ig-equivalent.py");
-            command.add("datapackage-nyher-fhir-ig-equivalent.json");
-            List<FileType> fileTypeOrder = Arrays.asList(
-                    FileType.QE_ADMIN_DATA,
-                    FileType.SCREENING_PROFILE_DATA,
-                    FileType.SCREENING_OBSERVATION_DATA,
-                    FileType.DEMOGRAPHIC_DATA);
-            Map<FileType, String> fileTypeToFileNameMap = new HashMap<>();
-            for (FileDetail fileDetail : fileDetails) {
-                fileTypeToFileNameMap.put(fileDetail.fileType(), fileDetail.filename());
-            }
-            for (FileType fileType : fileTypeOrder) {
-                command.add(fileTypeToFileNameMap.get(fileType)); // Adding the filename in order
-            }
-
-            // Pad with empty strings if fewer than 7 files
-            while (command.size() < 7) { // 1 (python) + 1 (script) + 1 (package) + 4 (files) //TODO CHECK IF THIS IS
-                                         // NEEDED ACCORDING TO NUMBER OF FILES.
-                command.add("");
-            }
-
-            // Add output path
-            // command.add("output.json");
-
-            return command;
+        public String validateCsvUsingPython(final List<FileDetail> fileDetails, final String interactionId) {
+            return validationStrategy.validateCsv(fileDetails, interactionId);
         }
 
         private String extractGroupId(final FileObject file) {

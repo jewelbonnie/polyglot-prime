@@ -8,6 +8,11 @@ org:
         hub:
           prime:
             csv:
+              # Specifies the CSV validation strategy.
+              # Options:
+              # - pythonExecutor: Executes a Python script locally for validation.
+              # - pythonService: Uses a remote Python-based validation service.
+              validator: pythonExecutor  # Options: pythonExecutor, pythonService
               validation:
                 pythonScriptPath: ${TECHBD_CSV_PYTHON_SCRIPT_PATH:../support/specifications/flat-file/validate-nyher-fhir-ig-equivalent.py}
                 pythonExecutable: ${TECHBD_CSV_PYTHON_EXECUTABLE:python3}
@@ -15,6 +20,11 @@ org:
                 inboundPath: ${TECHBD_CSV_INBOUND_PATH:/mnt/wsl/Ubuntu-22.04/tmp}/techbyDesign/flatFile/inbound
                 outputPath: ${TECHBD_CSV_INBOUND_PATH:/mnt/wsl/Ubuntu-22.04/tmp}/techbyDesign/flatFile/outbound
                 ingessHomePath: ${TECHBD_CSV_INGRESS_PATH:/mnt/wsl/Ubuntu-22.04/tmp}/techbyDesign/flatFile/ingress
+            csvs:  
+              # Base URL for the remote CSV validation service.
+              baseUrl: https://synthetic.csv-frictionless-validator.techbd.org
+              # API endpoint for CSV validation.
+              endpoint: /validate_service_nyher_fhir_ig_equivalent/  
             defaultDataLakeApiAuthn:
               # The allowed values for mTlsStrategy are as follows:
               # - no-mTls: No mTLS is used. The WebClient sends a standard HTTP POST request to the scoring engine API without mutual TLS (mTLS).
