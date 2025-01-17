@@ -31,7 +31,6 @@ import org.techbd.conf.Configuration;
 import org.techbd.orchestrate.fhir.OrchestrationEngine;
 import org.techbd.orchestrate.fhir.OrchestrationEngine.Device;
 import org.techbd.orchestrate.sftp.SftpManager;
-import org.techbd.service.constants.SourceType;
 import org.techbd.service.http.Helpers;
 import org.techbd.service.http.InteractionsFilter;
 import org.techbd.service.http.SandboxHelpers;
@@ -40,10 +39,6 @@ import org.techbd.service.http.hub.prime.AppConfig;
 import org.techbd.udi.UdiPrimeJpaConfig;
 import static org.techbd.udi.auto.jooq.ingress.Tables.INTERACTION_HTTP_REQUEST;
 
-import io.opentelemetry.api.metrics.LongCounter;
-import io.opentelemetry.api.metrics.Meter;
-import io.opentelemetry.api.trace.Span;
-import io.opentelemetry.api.trace.Tracer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -65,24 +60,18 @@ public class FhirController {
     private final AppConfig appConfig;
     private final UdiPrimeJpaConfig udiPrimeJpaConfig;
     private final FHIRService fhirService;
-    private final Tracer tracer;
-    private final Meter meter;
 
     public FhirController(@SuppressWarnings("PMD.UnusedFormalParameter") final Environment environment,
             final AppConfig appConfig,
             final UdiPrimeJpaConfig udiPrimeJpaConfig,
             final FHIRService fhirService,
             final OrchestrationEngine orchestrationEngine,
-            final Tracer tracer,
-            final Meter meter,
             @SuppressWarnings("PMD.UnusedFormalParameter") final SftpManager sftpManager,
             @SuppressWarnings("PMD.UnusedFormalParameter") final SandboxHelpers sboxHelpers) {
         this.appConfig = appConfig;
         this.udiPrimeJpaConfig = udiPrimeJpaConfig;
         this.fhirService = fhirService;
         this.engine = orchestrationEngine;
-        this.tracer = tracer;
-        this.meter = meter;
     }
 
     @GetMapping(value = "/metadata", produces = { MediaType.APPLICATION_XML_VALUE })
@@ -193,12 +182,10 @@ public class FhirController {
                     """, required = false) @RequestParam(value = "mtls-strategy", required = false) String mtlsStrategy,
             @Parameter(description = "Optional parameter to decide whether the session cookie (JSESSIONID) should be deleted.", required = false) @RequestParam(value = "delete-session-cookie", required = false) Boolean deleteSessionCookie,
             @Parameter(description = "Optional parameter to specify source of the request.", required = false) @RequestParam(value = "source", required = false, defaultValue = "FHIR") String source,
-            HttpServletRequest request, HttpServletResponse response) throws SQLException, IOException {
-        Span span = tracer.spanBuilder("FhirController.validateBundleAndForward").startSpan();
-        LongCounter  bundleCounter =  meter.counterBuilder("bundle.received.total")
-                          .setDescription("Counts of Bundle requests received")
-                         .build();
-        try {
+            @Parameter(description = "Optional parameter to specify if transformed validation issue needs to be appended.", required = false)
+            @RequestParam(value = "append-validation-issue", required = false, defaultValue = "true") 
+            boolean appendValidationIssue,
+                        HttpServletRequest request, HttpServletResponse response) throws SQLException, IOException {
         if (tenantId == null || tenantId.trim().isEmpty()) {
             LOG.error("FHIRController:Bundle Validate:: Tenant ID is missing or empty");
             throw new IllegalArgumentException("Tenant ID must be provided");
@@ -215,11 +202,7 @@ public class FhirController {
                 uaValidationStrategyJson,
                 customDataLakeApi, dataLakeApiContentType, healthCheck, isSync, includeRequestInOutcome,
                 includeIncomingPayloadInDB,
-                request, response, provenance, includeOperationOutcome, mtlsStrategy,null, null,null,source,requestUriToBeOverridden);
-        } finally {
-                bundleCounter.add(1);
-                span.end();
-        }
+                request, response, provenance, includeOperationOutcome, mtlsStrategy,null, null,null,source,requestUriToBeOverridden,appendValidationIssue);
     }
 
     @PostMapping(value = { "/Bundle/$validate", "/Bundle/$validate/" }, consumes = {
@@ -273,7 +256,10 @@ public class FhirController {
             @Parameter(description = "Optional header to specify the validation strategy. If not specified, the default settings mentioned in the application configuration will be used.", required = false) @RequestHeader(value = AppConfig.Servlet.HeaderName.Request.FHIR_VALIDATION_STRATEGY, required = false) String uaValidationStrategyJson,
             @Parameter(description = "Parameter to decide whether the request is to be included in the outcome.", required = false) @RequestParam(value = "include-request-in-outcome", required = false) boolean includeRequestInOutcome,
             @Parameter(description = "Optional parameter to decide whether the session cookie (JSESSIONID) should be deleted.", required = false) @RequestParam(value = "delete-session-cookie", required = false) Boolean deleteSessionCookie,
-            HttpServletRequest request, HttpServletResponse response) {
+            @Parameter(description = "Optional parameter to specify if transformed validation issue needs to be appended.", required = false)
+            @RequestParam(value = "append-validation-issue", required = false, defaultValue = "true") 
+            boolean appendValidationIssue,
+             HttpServletRequest request, HttpServletResponse response) {
 
         if (tenantId == null || tenantId.trim().isEmpty()) {
             LOG.error("FHIRController:Bundle Validate:: Tenant ID is missing or empty");
@@ -296,6 +282,9 @@ public class FhirController {
         final var sessionBuilder = engine.session()
                 .withSessionId(UUID.randomUUID().toString())
                 .onDevice(Device.createDefault())
+                .withAppendValidationIssue(appendValidationIssue)
+                .withInteractionId(InteractionsFilter.getActiveRequestEnc(request).requestId()
+                .toString())
                 .withPayloads(List.of(payload))
                 .withFhirProfileUrl(fhirProfileUrl)
                 .withFhirIGPackages(igPackages)
