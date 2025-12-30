@@ -7,6 +7,8 @@ import org.springframework.ws.server.endpoint.annotation.Endpoint;
 import org.springframework.ws.server.endpoint.annotation.PayloadRoot;
 import org.springframework.ws.server.endpoint.annotation.RequestPayload;
 import org.springframework.ws.server.endpoint.annotation.ResponsePayload;
+import org.springframework.ws.soap.SoapFaultException;
+import org.springframework.ws.soap.SoapMessage;
 import org.springframework.ws.transport.context.TransportContextHolder;
 import org.springframework.ws.transport.http.HttpServletConnection;
 import org.techbd.ingest.AbstractMessageSourceProvider;
@@ -17,6 +19,7 @@ import org.techbd.ingest.model.RequestContext;
 import org.techbd.ingest.service.MessageProcessorService;
 import org.techbd.ingest.service.iti.AcknowledgementService;
 import org.techbd.ingest.util.AppLogger;
+import org.techbd.ingest.util.SoapErrorUtil;
 import org.techbd.ingest.util.TemplateLogger;
 import org.techbd.iti.schema.ObjectFactory;
 import org.techbd.iti.schema.ProvideAndRegisterDocumentSetRequestType;
@@ -107,9 +110,9 @@ public class PnrEndpoint extends AbstractMessageSourceProvider {
             log.error("PnrEndpoint:: Exception processing ITI-41 request. sourceId={} msgType={} interactionId={}, error={}", 
                 sourceId, msgType, interactionId, e.getMessage(), e);
             
-            RegistryResponseType response = ackService.createPnrAcknowledgement("Failure", interactionId);
-            ObjectFactory factory = new ObjectFactory();
-            return factory.createRegistryResponse(response);
+            SoapErrorUtil.createSpringWsSoapFault(
+                (SoapMessage) messageContext.getRequest(), e, interactionId);
+            throw new SoapFaultException("Internal server error: " + e.getMessage());
         }
     }
 

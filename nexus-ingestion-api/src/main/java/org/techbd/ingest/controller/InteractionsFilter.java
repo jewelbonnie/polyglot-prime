@@ -112,12 +112,19 @@ public class InteractionsFilter extends OncePerRequestFilter {
                 origRequest.setAttribute(Constants.INTERACTION_ID, interactionId);
                 LOG.info("Incoming Request - interactionId={}", interactionId);
 
+                // Skip port resolution for SOAP endpoints
+                String requestUri = origRequest.getRequestURI();
+                if (requestUri.startsWith("/ws")) {
+                    LOG.info("InteractionsFilter: Skipping port resolution for SOAP endpoint: {} interactionId: {}", requestUri, interactionId);
+                    chain.doFilter(origRequest, origResponse);
+                    return;
+                }
+
                 // 1) determine request port (prefer X-Forwarded-Port header)
                 int requestPort = resolveRequestPort(origRequest);
                 LOG.info("InteractionsFilter: resolved request port={} interactionId: {}", requestPort, interactionId);
 
                 // 2) Extract sourceId and msgType from URI path
-                String requestUri = origRequest.getRequestURI();
                 String sourceId = null;
                 String msgType = null;
                 

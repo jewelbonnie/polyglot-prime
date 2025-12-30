@@ -101,8 +101,8 @@ public class WsaHeaderInterceptor implements EndpointInterceptor, SoapEndpointIn
         messageContext.setProperty(Constants.INTERACTION_ID, interactionId);
         LOG.info("handleResponse: Processing SOAP response for /ws endpoint. interactionId={}", interactionId);
 
-        messageProcessorService.processMessage(context, rawSoapMessage,
-                Hl7Util.soapMessageToString(message, interactionId));
+        // messageProcessorService.processMessage(context, rawSoapMessage,
+        //         Hl7Util.soapMessageToString(message, interactionId));
 
         return true;
     }

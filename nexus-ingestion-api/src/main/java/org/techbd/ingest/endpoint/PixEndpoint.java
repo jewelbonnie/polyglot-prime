@@ -7,6 +7,8 @@ import org.springframework.ws.server.endpoint.annotation.Endpoint;
 import org.springframework.ws.server.endpoint.annotation.PayloadRoot;
 import org.springframework.ws.server.endpoint.annotation.RequestPayload;
 import org.springframework.ws.server.endpoint.annotation.ResponsePayload;
+import org.springframework.ws.soap.SoapFaultException;
+import org.springframework.ws.soap.SoapMessage;
 import org.springframework.ws.transport.context.TransportContextHolder;
 import org.springframework.ws.transport.http.HttpServletConnection;
 import org.techbd.ingest.AbstractMessageSourceProvider;
@@ -18,6 +20,7 @@ import org.techbd.ingest.model.RequestContext;
 import org.techbd.ingest.service.MessageProcessorService;
 import org.techbd.ingest.service.iti.AcknowledgementService;
 import org.techbd.ingest.util.AppLogger;
+import org.techbd.ingest.util.SoapErrorUtil;
 import org.techbd.ingest.util.TemplateLogger;
 import org.techbd.iti.schema.MCCIIN000002UV01;
 import org.techbd.iti.schema.PRPAIN201301UV02;
@@ -100,7 +103,9 @@ public class PixEndpoint extends AbstractMessageSourceProvider {
         } catch (Exception e) {
             log.error("PixEndpoint:: Exception processing PRPA_IN201301UV02. interactionId={}, error={}",
                     interactionId, e.getMessage(), e);
-            return ackService.createPixAcknowledgmentError("Internal server error", interactionId);
+            SoapErrorUtil.createSpringWsSoapFault(
+                (SoapMessage) messageContext.getRequest(), e, interactionId);
+            throw new SoapFaultException("Internal server error: " + e.getMessage());
         } 
     }
 
@@ -146,7 +151,9 @@ public class PixEndpoint extends AbstractMessageSourceProvider {
         } catch (Exception e) {
             log.error("PixEndpoint:: Exception processing PRPA_IN201302UV02. interactionId={}, error={}",
                     interactionId, e.getMessage(), e);
-            return ackService.createPixAcknowledgmentError("Internal server error", interactionId);
+            SoapErrorUtil.createSpringWsSoapFault(
+                (SoapMessage) messageContext.getRequest(), e, interactionId);
+            throw new SoapFaultException("Internal server error: " + e.getMessage());
         } 
     }
 
@@ -192,7 +199,9 @@ public class PixEndpoint extends AbstractMessageSourceProvider {
         } catch (Exception e) {
             log.error("PixEndpoint:: Exception processing PRPA_IN201304UV02. interactionId={}, error={}",
                     interactionId, e.getMessage(), e);
-            return ackService.createPixAcknowledgmentError("Internal server error", interactionId);
+            SoapErrorUtil.createSpringWsSoapFault(
+                (SoapMessage) messageContext.getRequest(), e, interactionId);
+            throw new SoapFaultException("Internal server error: " + e.getMessage());
         } 
     }
 
