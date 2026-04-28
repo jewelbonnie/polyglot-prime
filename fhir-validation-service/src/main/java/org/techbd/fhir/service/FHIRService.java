@@ -126,6 +126,11 @@ public class FHIRService {
 			String dataLakeApiContentType = (String)requestParameters.get(Constants.DATA_LAKE_API_CONTENT_TYPE);
 			final String customDataLakeApi = (String)requestParameters.get(Constants.CUSTOM_DATA_LAKE_API);
 			final String healthCheck = (String)requestParameters.get(Constants.HEALTH_CHECK);
+			// ADD THESE 3 LINES HERE ↓
+System.out.println("healthCheck raw value: " + healthCheck);
+System.out.println("requestParameters keys: " + requestParameters.keySet());
+System.out.println("Constants.HEALTH_CHECK = " + Constants.HEALTH_CHECK);
+// ↑ END
 			final String provenance = (String)requestParameters.get(Constants.PROVENANCE);
 			final String mtlsStrategy = (String)requestParameters.get(Constants.MTLS_STRATEGY);
 			final String groupInteractionId = (String)requestParameters.get(Constants.GROUP_INTERACTION_ID);
@@ -143,7 +148,8 @@ public class FHIRService {
                 throw new IllegalArgumentException("Interaction ID must be provided in the request parameters.");
             }
 				final String bundleId = FHIRUtil.extractBundleId(payload, tenantId);
-			if (!SourceType.CSV.name().equalsIgnoreCase(source)
+			final boolean isHealthCheck = healthCheck != null && "true".equalsIgnoreCase(healthCheck.trim());
+			if (!isHealthCheck && !SourceType.CSV.name().equalsIgnoreCase(source)
 					&& !SourceType.CCDA.name().equalsIgnoreCase(source)
 					&& !SourceType.HL7V2.name().equalsIgnoreCase(source)) {
 				DataLedgerPayload dataLedgerPayload = null;
@@ -162,7 +168,7 @@ public class FHIRService {
 			}
             LOG.info("Bundle processing start at {} for interaction id {}.", interactionId);
             
-			if (!"true".equalsIgnoreCase(healthCheck != null ? healthCheck.trim() : null)) {
+			if (!isHealthCheck) {
 				registerOriginalPayload(requestParameters,
 						payload, interactionId, groupInteractionId, masterInteractionId,
 						source, requestUriToBeOverriden, coRrelationId);
@@ -178,18 +184,17 @@ public class FHIRService {
                                 final Map<String, Object> immediateResult = validate(requestParameters, payload, interactionId, provenance,
                         source);
                                                final Map<String, Object> result = Map.of("OperationOutcome", immediateResult);
-				if (!"true".equalsIgnoreCase(healthCheck != null ? healthCheck.trim() : null)) {
+				if (!isHealthCheck) {
 					payloadWithDisposition = registerValidationResults(requestParameters,
 							result, interactionId, groupInteractionId, masterInteractionId,
 							source, requestUriToBeOverriden);
 				}
+                if (isHealthCheck) {
+                    return result;
+                }
                 if (StringUtils.isNotEmpty(requestUri)
                         && (requestUri.equals("/Bundle/$validate") || requestUri.equals("/Bundle/$validate/"))) {
                     return payloadWithDisposition;
-                }
-
-                if ("true".equalsIgnoreCase(healthCheck != null ? healthCheck.trim() : null)) {
-                    return result;
                 }
 
                 if (isActionDiscard(payloadWithDisposition)) {
@@ -197,8 +202,12 @@ public class FHIRService {
                     return payloadWithDisposition;
                 }
             } catch (final JsonValidationException ex) {
+				final Map<String, Object> operationOutcome = buildOperationOutcome(ex, interactionId);
+				if (isHealthCheck) {
+					return operationOutcome;
+				}
 				payloadWithDisposition = registerValidationResults(requestParameters,
-						buildOperationOutcome(ex, interactionId), interactionId, groupInteractionId, masterInteractionId,
+						operationOutcome, interactionId, groupInteractionId, masterInteractionId,
 						source, requestUriToBeOverriden);
                 LOG.info("Exception occurred: {} while processing bundle for interaction id :{} ", ex.getMessage(),interactionId); 
             }
