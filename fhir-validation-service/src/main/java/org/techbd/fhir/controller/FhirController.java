@@ -147,6 +147,8 @@ public class FhirController {
                         @Parameter(description = "Optional header to provide elaboration details.", required = false) @RequestHeader(value = "X-TechBD-Elaboration", required = false) String elaboration,
                         @Parameter(description = "Optional header to specify group interaction ID.", required = false) @RequestHeader(value = "X-TechBD-Group-Interaction-ID", required = false) String groupInteractionId, @Parameter(description = "Optional header to specify interaction ID.", required = false) @RequestHeader(value = "X-TechBD-Interaction-ID", required = false) String interactionId,         @Parameter(description = "Optional header to specify override request URI.", required = false)
                         @RequestHeader(value = "X-TechBD-Override-Request-URI", required = false) String requestUriToBeOverridden,  
+                        @Parameter(description = "Optional header for health check.", required = false)
+                        @RequestHeader(value = "X-TechBD-HealthCheck", required = false, defaultValue = "false") String healthCheck,
                         @Parameter(description = "Optional header to specify data ledgder tracking.", required = false)@RequestHeader(value = "X-TechBD-Data-Ledger-Tracking", required = false, defaultValue = "false")
                         boolean dataLedgerTracking,
                         @Parameter(description = "Optional header to specify data ledger diagnostics.", required = false)@RequestHeader(value = "X-TechBD-Data-Ledger-diagnostics", required = false, defaultValue = "false")
@@ -164,8 +166,12 @@ public class FhirController {
                                 deleteJSessionCookie(request, response);
                         }
                         // request = new CustomRequestWrapper(request, payload);
+                        final String rawHealthCheckHeader = request.getHeader(Constants.HEALTH_CHECK_HEADER);
+                        final String resolvedHealthCheck = firstNonBlank(rawHealthCheckHeader, healthCheck, "false");
+                        LOG.debug("FhirController.validateBundle - raw healthCheck header: '{}', bound healthCheck: '{}', resolved healthCheck: '{}'",
+                                rawHealthCheckHeader, healthCheck, resolvedHealthCheck);
                         Map<String, Object> headers = CoreFHIRUtil.buildHeaderParametersMap(tenantId, null, null,
-                        requestUriToBeOverridden, null, null, null, null,requestedIgVersion );
+                        requestUriToBeOverridden, null, resolvedHealthCheck, null, null,requestedIgVersion );
                         Map <String,Object> requestDetailsMap = CoreFHIRUtil.extractRequestDetails(request);            
                         LOG.debug("FhirController.validateBundle - sourceType: '{}', groupInteractionId: '{}', masterInteractionId: '{}'", 
                                 sourceType, groupInteractionId, masterInteractionId);
@@ -180,6 +186,7 @@ public class FhirController {
                         requestDetailsMap.put(Constants.DATA_LEDGER_TRACKING, dataLedgerTracking);
                         requestDetailsMap.put(Constants.DATA_LEDGER_DIAGNOSTICS, dataLedgerDiagnostics);
                         requestDetailsMap.putAll(headers);
+                        requestDetailsMap.put(Constants.HEALTH_CHECK_HEADER, resolvedHealthCheck);
                         Map<String, Object> responseParameters = new HashMap<>();
                         final var result = fhirService.processBundle(payload, requestDetailsMap,  responseParameters);
                         CoreFHIRUtil.addCookieAndHeadersToResponse(response, responseParameters, requestDetailsMap);
@@ -386,6 +393,15 @@ public class FhirController {
                 cookie.setMaxAge(0); // Make it expire immediately
                 cookie.setPath("/"); // Set the same path as the original cookie
                 response.addCookie(cookie); // Add it to the response to delete
+        }
+
+        private String firstNonBlank(String... values) {
+                for (String value : values) {
+                        if (value != null && !value.trim().isEmpty()) {
+                                return value.trim();
+                        }
+                }
+                return null;
         }
 
 }
