@@ -126,11 +126,6 @@ public class FHIRService {
 			String dataLakeApiContentType = (String)requestParameters.get(Constants.DATA_LAKE_API_CONTENT_TYPE);
 			final String customDataLakeApi = (String)requestParameters.get(Constants.CUSTOM_DATA_LAKE_API);
 			final String healthCheck = (String)requestParameters.get(Constants.HEALTH_CHECK);
-			// ADD THESE 3 LINES HERE ↓
-System.out.println("healthCheck raw value: " + healthCheck);
-System.out.println("requestParameters keys: " + requestParameters.keySet());
-System.out.println("Constants.HEALTH_CHECK = " + Constants.HEALTH_CHECK);
-// ↑ END
 			final String provenance = (String)requestParameters.get(Constants.PROVENANCE);
 			final String mtlsStrategy = (String)requestParameters.get(Constants.MTLS_STRATEGY);
 			final String groupInteractionId = (String)requestParameters.get(Constants.GROUP_INTERACTION_ID);
