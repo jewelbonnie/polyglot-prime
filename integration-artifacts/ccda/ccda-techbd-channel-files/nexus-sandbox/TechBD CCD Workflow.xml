@@ -1,18 +1,25 @@
-<channel version="4.6.1">
-  <id>c00e53b6-6165-4bb3-bd47-7f1e5d9708d4</id>
+<channel version="26.3.0">
+  <id>30c99bf7-8d1a-45c6-b391-e2b88b1103ea</id>
   <nextMetaDataId>12</nextMetaDataId>
   <name>TechBD CCD Workflow</name>
-  <description>Version 0.5.28
-Implemented Uuid version 7.</description>
-  <revision>5</revision>
-  <sourceConnector version="4.6.1">
+  <description>Version 0.5.29
+Update bridge link channel to modify Grouper Observation Resource ID generation logic.</description>
+  <revision>7</revision>
+  <sourceConnector version="26.3.0">
     <metaDataId>0</metaDataId>
     <name>sourceConnector</name>
-    <properties class="com.mirth.connect.connectors.http.HttpReceiverProperties" version="4.6.1">
+    <properties class="com.mirth.connect.connectors.http.HttpReceiverProperties" version="26.3.0">
       <pluginProperties>
-        <com.mirth.connect.plugins.ssl.SSLSettingsProperties version="4.6.1">
+        <com.mirth.connect.plugins.httpauth.NoneHttpAuthProperties version="26.3.0">
+  <authType>NONE</authType>
+        </com.mirth.connect.plugins.httpauth.NoneHttpAuthProperties>
+        <com.mirth.connect.plugins.ssl.SSLSettingsProperties version="26.3.0">
   <sslEnabled>false</sslEnabled>
           <mutualTlsEnabled>false</mutualTlsEnabled>
+          <mutualTlsMigrated>false</mutualTlsMigrated>
+          <clientCertValidationEnabled>false</clientCertValidationEnabled>
+          <clientCertOptionalEnabled>false</clientCertOptionalEnabled>
+          <serverCertValidationEnabled>false</serverCertValidationEnabled>
           <verifyHostname>false</verifyHostname>
           <keystorePath/>
           <keystorePassword/>
@@ -30,16 +37,14 @@ Implemented Uuid version 7.</description>
           <myCertificateAlias/>
           <truststoreSettingFromSystem>false</truststoreSettingFromSystem>
           <truststoreUid/>
+          <softFailIfResponderUnavailable>false</softFailIfResponderUnavailable>
         </com.mirth.connect.plugins.ssl.SSLSettingsProperties>
-        <com.mirth.connect.plugins.httpauth.NoneHttpAuthProperties version="4.6.1">
-  <authType>NONE</authType>
-        </com.mirth.connect.plugins.httpauth.NoneHttpAuthProperties>
       </pluginProperties>
-      <listenerConnectorProperties version="4.6.1">
+      <listenerConnectorProperties version="26.3.0">
         <host>0.0.0.0</host>
         <port>9002</port>
       </listenerConnectorProperties>
-      <sourceConnectorProperties version="4.6.1">
+      <sourceConnectorProperties version="26.3.0">
         <responseVariable>finalResponse</responseVariable>
         <respondAfterProcessing>true</respondAfterProcessing>
         <processBatch>false</processBatch>
@@ -92,6 +97,7 @@ Implemented Uuid version 7.</description>
       <charset>DEFAULT_ENCODING</charset>
       <contextPath>/</contextPath>
       <timeout>300000</timeout>
+      <requestHeaderSize>8192</requestHeaderSize>
       <staticResources>
         <com.mirth.connect.connectors.http.HttpStaticResource>
           <contextPath>/healthcheck</contextPath>
@@ -101,9 +107,9 @@ Implemented Uuid version 7.</description>
         </com.mirth.connect.connectors.http.HttpStaticResource>
       </staticResources>
     </properties>
-    <transformer version="4.6.1">
+    <transformer version="26.3.0">
       <elements>
-        <com.mirth.connect.plugins.javascriptstep.JavaScriptStep version="4.6.1">
+        <com.mirth.connect.plugins.javascriptstep.JavaScriptStep version="26.3.0">
           <name>DB Save</name>
           <sequenceNumber>0</sequenceNumber>
           <enabled>true</enabled>
@@ -242,7 +248,7 @@ function saveCcdaPayload(interactionId, tenantId, requestUri, payloadJson, opera
 	}
 }</script>
         </com.mirth.connect.plugins.javascriptstep.JavaScriptStep>
-        <com.mirth.connect.plugins.javascriptstep.JavaScriptStep version="4.6.1">
+        <com.mirth.connect.plugins.javascriptstep.JavaScriptStep version="26.3.0">
           <name>Common JS functions</name>
           <sequenceNumber>1</sequenceNumber>
           <enabled>true</enabled>
@@ -859,7 +865,7 @@ function convertCcdaToFhirBundle(phiFilteredXml) {
     return cleanedJsonString;
 }</script>
         </com.mirth.connect.plugins.javascriptstep.JavaScriptStep>
-        <com.mirth.connect.plugins.javascriptstep.JavaScriptStep version="4.6.1">
+        <com.mirth.connect.plugins.javascriptstep.JavaScriptStep version="26.3.0">
           <name>Validate HTTP Request and collect headers</name>
           <sequenceNumber>2</sequenceNumber>
           <enabled>true</enabled>
@@ -1399,7 +1405,7 @@ logger.info(&quot;jdbcPassword loaded successfully.&quot;);
     throw errorMessage; // Stop further processing by throwing an exception
 }</script>
         </com.mirth.connect.plugins.javascriptstep.JavaScriptStep>
-        <com.mirth.connect.plugins.javascriptstep.JavaScriptStep version="4.6.1">
+        <com.mirth.connect.plugins.javascriptstep.JavaScriptStep version="26.3.0">
           <name>step_validate_profile_urls_env_variables</name>
           <sequenceNumber>3</sequenceNumber>
           <enabled>true</enabled>
@@ -1526,9 +1532,12 @@ function getPatientMRN(patientRoles) {
     channelMap.put(&apos;Patient-MRN&apos;, extensionAttr);
 }
 
-function getEncounterEffectiveTime(encounterNodeList) {
-    var fallbackTime = new java.text.SimpleDateFormat(&quot;yyyy-MM-dd&apos;T&apos;HH:mm:ss.SS&apos;Z&apos;&quot;).format(new java.util.Date());
-    var effectiveTimeOut = &apos;&apos;;
+function getEncounterEffectiveTime(encounterNodeList, returnFallBackTime) {
+    var currentTime = new java.text.SimpleDateFormat(&quot;yyyy-MM-dd&apos;T&apos;HH:mm:ss.SS&apos;Z&apos;&quot;).format(new java.util.Date());
+    var fallbackTime = &apos;&apos;;
+    if (returnFallBackTime != &apos;False&apos;) {
+    		fallbackTime = currentTime;
+    }
 
     if (!encounterNodeList || encounterNodeList.length === 0) {	
         return fallbackTime;
@@ -1539,14 +1548,12 @@ function getEncounterEffectiveTime(encounterNodeList) {
     // Try to get low/@value
     var lowValue = encounterNode.*::effectiveTime.*::low.@value.toString();
     if (lowValue &amp;&amp; lowValue.length &gt; 0) {
-        logger.info(&quot;effectiveTime (low): &quot; + lowValue);
         return lowValue;
     }
 
     // Try to get effectiveTime/@value
     var directValue = encounterNode.*::effectiveTime.@value.toString();
     if (directValue &amp;&amp; directValue.length &gt; 0) {
-        logger.info(&quot;effectiveTime (direct): &quot; + directValue);
         return directValue;
     }
 
@@ -1788,6 +1795,14 @@ function getMultipleAnswersForComponent(transformer, observations) {
 	return transformer;
 }
 
+function setBooleanHeaderFlag(headerName, transformer) {
+    var value = channelMap.get(headerName);
+    transformer.setParameter(
+        headerName,
+        (value &amp;&amp; String(value).toLowerCase() === &quot;true&quot;) ? &quot;true&quot; : &quot;false&quot;
+    );
+    return transformer;
+}
 // Define Namespace Resolver
 function setResourceIdParameters(transformer) {
     	// Parse XML
@@ -1879,57 +1894,139 @@ function setResourceIdParameters(transformer) {
 	    logger.error(&quot;Error accessing encounter: &quot; + e);
 	}
 
-	///Grouper Observation Resource 
-	var mrn = channelMap.get(&apos;Patient-MRN&apos;) || &quot;&quot;;
-     var cin = channelMap.get(&apos;patientCIN&apos;) || &quot;&quot;;
-     var currentTimestamp = new java.text.SimpleDateFormat(&quot;yyyy-MM-dd&apos;T&apos;HH:mm:ss.SS&apos;Z&apos;&quot;).format(new java.util.Date());
-	var combinedText = mrn + cin + &apos;Grouper Observation Resource&apos; + currentTimestamp;
+	/// ** Grouper Observation Resource ** ///
+	// Get grouper Screening Code
+     // For Epic files, use the value of the header variable,&apos;X-TechBD-Screening-Code&apos;, as the Grouper Screening Code, otherwise use the LOINC code &apos;100698-0&apos;
+     // For Medent files, take the value from code.code
+     var grouperScreeningCode = channelMap.get(&apos;X-TechBD-Screening-Code&apos;);
+	var grouperScreeningEffectiveTime = &apos;&apos;;
+	
+	// Extract effectiveTime (COMMON for all vendors)
+	try {
+	    var observations = xmlDoc.*::component
+	        .*::structuredBody
+	        .*::component
+	        .*::section.(@ID == &apos;observations&apos;)
+	        .*::entry
+	        .*::observation;
+	
+	    if (observations != undefined &amp;&amp; observations.length() &gt; 0) {
+	        var obs = observations[0]; // first observation (same as [1] in XSLT)
+	
+	        if (obs.*::effectiveTime) {
+	            var effTime = obs.*::effectiveTime.@value.toString().trim();
+	
+	            // fallback to low/@value
+	            if (!effTime || effTime == &apos;&apos;) {
+	                effTime = obs.*::effectiveTime.*::low.@value.toString().trim();
+	            }
+	
+	            grouperScreeningEffectiveTime = effTime;
+	        }
+	    }
+	
+	    logger.info(&quot;Grouper Screening Effective Time: &quot; + grouperScreeningEffectiveTime);
+	
+	} catch (e) {
+	    logger.error(&quot;Error extracting grouperScreeningEffectiveTime: &quot; + e);
+	}
+
+	if ((channelMap.get(&apos;ehrVendor&apos;) == &apos;Epic&apos; || channelMap.get(&apos;ehrVendor&apos;) == &apos;Athenahealth&apos;)
+	    &amp;&amp; (!grouperScreeningCode || grouperScreeningCode.trim() === &apos;&apos;)) {
+	
+	    grouperScreeningCode = &apos;100698-0&apos;;
+	    logger.info(&quot;Defaulting grouperScreeningCode to 100698-0 for Epic&quot;);
+	    	} else if ((channelMap.get(&apos;ehrVendor&apos;) == &apos;Medent&apos;)
+	    &amp;&amp; (!grouperScreeningCode || grouperScreeningCode.trim() === &apos;&apos;)) {
+	
+	    // Try to extract from CCDA observations
+	    try {
+	        var observations = xmlDoc.*::component
+	            .*::structuredBody
+	            .*::component
+	            .*::section.(@ID == &apos;observations&apos;)
+	            .*::entry
+	            .*::observation;
+	
+	        if (observations != undefined &amp;&amp; observations.length() &gt; 0) {
+	            for each (var obs in observations) {
+	                if (obs.*::code &amp;&amp; obs.*::code.@code.toString().trim() != &apos;&apos;) {
+	                    grouperScreeningCode = obs.*::code.@code.toString().trim();
+	                    logger.info(&quot;Using screening code from CCDA observation (Medent): &quot; + grouperScreeningCode);
+	                    break;
+	                }
+	            }
+	        }
+	
+	    } catch (e) {
+	        logger.error(&quot;Error extracting screening code/effectiveTime for Medent: &quot; + e);
+	    }
+	
+	    // Final fallback if still empty (matches XSLT)
+	    if (!grouperScreeningCode || grouperScreeningCode.trim() === &apos;&apos;) {
+	        grouperScreeningCode = &apos;96777-8&apos;;
+	        logger.info(&quot;Defaulting grouperScreeningCode to 96777-8 for Medent&quot;);
+	    }
+	} else { // For general CCDA files
+		//grouperScreeningEffectiveTime = &apos;&apos;;
+	}
+	grouperScreeningCode = (grouperScreeningCode || &apos;&apos;).trim();
+	
+	transformer.setParameter(&apos;grouperScreeningCode&apos;, String(grouperScreeningCode));
+	logger.info(&apos;grouperScreeningCode&apos; + &quot; : &quot; + grouperScreeningCode);
+
+	// Get encounter effective time
+	var encounterEffectiveTime = &apos;&apos;;
+	try {
+		var encounter = xmlDoc.*::componentOf.*::encompassingEncounter;
+		if (encounter != undefined &amp;&amp; encounter.length() &gt; 0) {
+		    encounterEffectiveTime = getEncounterEffectiveTime(encounter, &apos;False&apos;);	
+		} else {
+		    // Try fallback to `encounter`
+		    var encounters = xmlDoc.*::component
+	                     .*::structuredBody
+	                     .*::component
+	                     .*::section.(@ID == &apos;encounters&apos;)
+	                     .*::entry[0]
+	                     .*::encounter;
+		    if (encounters != undefined &amp;&amp; encounters.length() &gt; 0) {
+		        encounterEffectiveTime = getEncounterEffectiveTime(encounters, &apos;False&apos;);
+		    } else {
+		        logger.error(&quot;Encounter resource not found in the XML.&quot;);
+		    }
+		}
+	} catch (e) {
+	    logger.error(&quot;Error accessing encounter: &quot; + e);
+	}
+
+	// Generate the Grouper Observation Resource ID
+	var mrn = (channelMap.get(&apos;Patient-MRN&apos;) || &quot;&quot;).trim();
+	var cin = (channelMap.get(&apos;patientCIN&apos;) || &quot;&quot;).trim();
+     var finalEffectiveTime = grouperScreeningEffectiveTime;
+	
+	if (!finalEffectiveTime || finalEffectiveTime.trim() === &apos;&apos;) {
+	    finalEffectiveTime = encounterEffectiveTime || &apos;&apos;;
+	    logger.info(&quot;Using encounterEffectiveTime as fallback for generating Grouper Resource ID : &quot; + finalEffectiveTime);
+	}
+
+     logger.info(&quot;Hash Inputs → MRN: &quot; + mrn + &quot;, CIN: &quot; + cin +
+            &quot;, Code: &quot; + grouperScreeningCode +
+            &quot;, EffectiveTime: &quot; + finalEffectiveTime);
+            
+     var combinedText = mrn + cin + grouperScreeningCode + finalEffectiveTime;
      var sha256Hash = generateSHA256(new java.lang.String(combinedText)); 
     
      transformer.setParameter(&apos;grouperObservationResourceSha256Id&apos;, sha256Hash);
      logger.info(&apos;grouperObservationResourceSha256Id&apos; + &quot; : &quot; + sha256Hash);
-
+     
+     // Set category xml
      transformer = getObservationCategoryCodes(transformer, sourceXml); //observations
      transformer = getMultipleAnswersForComponent(transformer, sourceXml); //observations
-
-     //For Epic files, use the value of the header variable,&apos;X-TechBD-Screening-Code&apos;, as the Grouper Screening Code, otherwise use the LOINC code &apos;100698-0&apos;
-     //For Medent files, take the value from code.code
-     var grouperScreeningCode = channelMap.get(&apos;X-TechBD-Screening-Code&apos;);
-     if ((channelMap.get(&apos;ehrVendor&apos;) == &apos;Epic&apos; || channelMap.get(&apos;ehrVendor&apos;) == &apos;Athenahealth&apos;)
-     	&amp;&amp; (!grouperScreeningCode || grouperScreeningCode.trim() === &apos;&apos;)) {
-	    grouperScreeningCode = &apos;100698-0&apos;;
-	    logger.info(&quot;Defaulting grouperScreeningCode to 100698-0 for Epic&quot;);
-	}
-	if (!grouperScreeningCode) {
-	    grouperScreeningCode = &apos;&apos;;
-	}
-     transformer.setParameter(&apos;grouperScreeningCode&apos;, String(grouperScreeningCode));
-     logger.info(&apos;grouperScreeningCode&apos; + &quot; : &quot; + grouperScreeningCode);
-
-	// Set part2 flag
-     var part2DataFlag = channelMap.get(&apos;X-TechBD-Part2&apos;);
-	var flagValue = &quot;false&quot;;
-	if (part2DataFlag &amp;&amp; String(part2DataFlag).toLowerCase() === &quot;true&quot;) {
-	    flagValue = &quot;true&quot;;
-	}	
-	transformer.setParameter(&apos;X-TechBD-Part2&apos;, flagValue);
-
-	// Set OMH flag
-	var omhFlag = channelMap.get(&apos;X-TechBD-OMH&apos;);
-	var omhFlagValue = &quot;false&quot;;
-	if (omhFlag &amp;&amp; String(omhFlag).toLowerCase() === &quot;true&quot;) {
-    	omhFlagValue = &quot;true&quot;;
-	}
-	transformer.setParameter(&apos;X-TechBD-OMH&apos;, omhFlagValue);
-
-	// Set OPWDD flag
-	var opwddFlag = channelMap.get(&apos;X-TechBD-OPWDD&apos;);
-	var opwddFlagValue = &quot;false&quot;;
-	if (opwddFlag &amp;&amp; String(opwddFlag).toLowerCase() === &quot;true&quot;) {
-    	opwddFlagValue = &quot;true&quot;;
-	}
-	transformer.setParameter(&apos;X-TechBD-OPWDD&apos;, opwddFlagValue);
-
+    
+	// Set part2, OMH and OPWDD flags
+	transformer = setBooleanHeaderFlag(&apos;X-TechBD-Part2&apos;, transformer); // Set part2 flag
+	transformer = setBooleanHeaderFlag(&apos;X-TechBD-OMH&apos;, transformer);	  // Set OMH flag
+	transformer = setBooleanHeaderFlag(&apos;X-TechBD-OPWDD&apos;, transformer); // Set OPWDD flag
 	// Extract `location`
      try {
 	    var location;
@@ -2111,7 +2208,7 @@ function getConsentResourceStatus(sourceXml) {
      }
 }</script>
         </com.mirth.connect.plugins.javascriptstep.JavaScriptStep>
-        <com.mirth.connect.plugins.javascriptstep.JavaScriptStep version="4.6.1">
+        <com.mirth.connect.plugins.javascriptstep.JavaScriptStep version="26.3.0">
           <name>Validate Mandatory Fields</name>
           <sequenceNumber>4</sequenceNumber>
           <enabled>true</enabled>
@@ -2286,7 +2383,7 @@ function validateMandatoryFields() {
     return null; // validation passed
 }</script>
         </com.mirth.connect.plugins.javascriptstep.JavaScriptStep>
-        <com.mirth.connect.plugins.javascriptstep.JavaScriptStep version="4.6.1">
+        <com.mirth.connect.plugins.javascriptstep.JavaScriptStep version="26.3.0">
           <name>API endpoint processing</name>
           <sequenceNumber>5</sequenceNumber>
           <enabled>true</enabled>
@@ -2609,11 +2706,11 @@ else {
       <outboundTemplate encoding="base64"></outboundTemplate>
       <inboundDataType>XML</inboundDataType>
       <outboundDataType>RAW</outboundDataType>
-      <inboundProperties class="com.mirth.connect.plugins.datatypes.xml.XMLDataTypeProperties" version="4.6.1">
-        <serializationProperties class="com.mirth.connect.plugins.datatypes.xml.XMLSerializationProperties" version="4.6.1">
+      <inboundProperties class="com.mirth.connect.plugins.datatypes.xml.XMLDataTypeProperties" version="26.3.0">
+        <serializationProperties class="com.mirth.connect.plugins.datatypes.xml.XMLSerializationProperties" version="26.3.0">
           <stripNamespaces>false</stripNamespaces>
         </serializationProperties>
-        <batchProperties class="com.mirth.connect.plugins.datatypes.xml.XMLBatchProperties" version="4.6.1">
+        <batchProperties class="com.mirth.connect.plugins.datatypes.xml.XMLBatchProperties" version="26.3.0">
           <splitType>Element_Name</splitType>
           <elementName></elementName>
           <level>1</level>
@@ -2621,16 +2718,16 @@ else {
           <batchScript></batchScript>
         </batchProperties>
       </inboundProperties>
-      <outboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="4.6.1">
-        <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="4.6.1">
+      <outboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="26.3.0">
+        <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="26.3.0">
           <splitType>JavaScript</splitType>
           <batchScript></batchScript>
         </batchProperties>
       </outboundProperties>
     </transformer>
-    <filter version="4.6.1">
+    <filter version="26.3.0">
       <elements>
-        <com.mirth.connect.plugins.javascriptrule.JavaScriptRule version="4.6.1">
+        <com.mirth.connect.plugins.javascriptrule.JavaScriptRule version="26.3.0">
           <name>Http url and method validation</name>
           <sequenceNumber>0</sequenceNumber>
           <enabled>true</enabled>
@@ -2754,12 +2851,12 @@ function notFound() {
     <waitForPrevious>true</waitForPrevious>
   </sourceConnector>
   <destinationConnectors>
-    <connector version="4.6.1">
+    <connector version="26.3.0">
       <metaDataId>1</metaDataId>
       <name>dest_bundle_validate</name>
-      <properties class="com.mirth.connect.connectors.vm.VmDispatcherProperties" version="4.6.1">
+      <properties class="com.mirth.connect.connectors.vm.VmDispatcherProperties" version="26.3.0">
         <pluginProperties/>
-        <destinationConnectorProperties version="4.6.1">
+        <destinationConnectorProperties version="26.3.0">
           <queueEnabled>false</queueEnabled>
           <sendFirst>false</sendFirst>
           <retryIntervalMillis>10000</retryIntervalMillis>
@@ -2783,45 +2880,45 @@ function notFound() {
         <channelTemplate>${message.encodedData}</channelTemplate>
         <mapVariables/>
       </properties>
-      <transformer version="4.6.1">
+      <transformer version="26.3.0">
         <elements/>
         <inboundTemplate encoding="base64"></inboundTemplate>
         <outboundTemplate encoding="base64"></outboundTemplate>
         <inboundDataType>RAW</inboundDataType>
         <outboundDataType>RAW</outboundDataType>
-        <inboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="4.6.1">
-          <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="4.6.1">
+        <inboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="26.3.0">
+          <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="26.3.0">
             <splitType>JavaScript</splitType>
             <batchScript></batchScript>
           </batchProperties>
         </inboundProperties>
-        <outboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="4.6.1">
-          <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="4.6.1">
+        <outboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="26.3.0">
+          <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="26.3.0">
             <splitType>JavaScript</splitType>
             <batchScript></batchScript>
           </batchProperties>
         </outboundProperties>
       </transformer>
-      <responseTransformer version="4.6.1">
+      <responseTransformer version="26.3.0">
         <elements/>
         <inboundDataType>RAW</inboundDataType>
         <outboundDataType>RAW</outboundDataType>
-        <inboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="4.6.1">
-          <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="4.6.1">
+        <inboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="26.3.0">
+          <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="26.3.0">
             <splitType>JavaScript</splitType>
             <batchScript></batchScript>
           </batchProperties>
         </inboundProperties>
-        <outboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="4.6.1">
-          <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="4.6.1">
+        <outboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="26.3.0">
+          <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="26.3.0">
             <splitType>JavaScript</splitType>
             <batchScript></batchScript>
           </batchProperties>
         </outboundProperties>
       </responseTransformer>
-      <filter version="4.6.1">
+      <filter version="26.3.0">
         <elements>
-          <com.mirth.connect.plugins.rulebuilder.RuleBuilderRule version="4.6.1">
+          <com.mirth.connect.plugins.rulebuilder.RuleBuilderRule version="26.3.0">
             <name>Accept message if &quot;$(&apos;endpoint&apos;)&quot; equals &apos;validate&apos;</name>
             <sequenceNumber>0</sequenceNumber>
             <enabled>true</enabled>
@@ -2838,14 +2935,18 @@ function notFound() {
       <enabled>true</enabled>
       <waitForPrevious>true</waitForPrevious>
     </connector>
-    <connector version="4.6.1">
+    <connector version="26.3.0">
       <metaDataId>2</metaDataId>
       <name>dest_bundle</name>
-      <properties class="com.mirth.connect.connectors.http.HttpDispatcherProperties" version="4.6.1">
+      <properties class="com.mirth.connect.connectors.http.HttpDispatcherProperties" version="26.3.0">
         <pluginProperties>
-          <com.mirth.connect.plugins.ssl.SSLSettingsProperties version="4.6.1">
+          <com.mirth.connect.plugins.ssl.SSLSettingsProperties version="26.3.0">
   <sslEnabled>false</sslEnabled>
             <mutualTlsEnabled>false</mutualTlsEnabled>
+            <mutualTlsMigrated>false</mutualTlsMigrated>
+            <clientCertValidationEnabled>false</clientCertValidationEnabled>
+            <clientCertOptionalEnabled>false</clientCertOptionalEnabled>
+            <serverCertValidationEnabled>false</serverCertValidationEnabled>
             <verifyHostname>false</verifyHostname>
             <keystorePath/>
             <keystorePassword/>
@@ -2863,9 +2964,10 @@ function notFound() {
             <myCertificateAlias/>
             <truststoreSettingFromSystem>false</truststoreSettingFromSystem>
             <truststoreUid/>
+            <softFailIfResponderUnavailable>false</softFailIfResponderUnavailable>
           </com.mirth.connect.plugins.ssl.SSLSettingsProperties>
         </pluginProperties>
-        <destinationConnectorProperties version="4.6.1">
+        <destinationConnectorProperties version="26.3.0">
           <queueEnabled>false</queueEnabled>
           <sendFirst>false</sendFirst>
           <retryIntervalMillis>10000</retryIntervalMillis>
@@ -3023,45 +3125,45 @@ function notFound() {
         <charset>UTF-8</charset>
         <socketTimeout>300000</socketTimeout>
       </properties>
-      <transformer version="4.6.1">
+      <transformer version="26.3.0">
         <elements/>
         <inboundTemplate encoding="base64"></inboundTemplate>
         <outboundTemplate encoding="base64"></outboundTemplate>
         <inboundDataType>RAW</inboundDataType>
         <outboundDataType>RAW</outboundDataType>
-        <inboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="4.6.1">
-          <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="4.6.1">
+        <inboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="26.3.0">
+          <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="26.3.0">
             <splitType>JavaScript</splitType>
             <batchScript></batchScript>
           </batchProperties>
         </inboundProperties>
-        <outboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="4.6.1">
-          <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="4.6.1">
+        <outboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="26.3.0">
+          <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="26.3.0">
             <splitType>JavaScript</splitType>
             <batchScript></batchScript>
           </batchProperties>
         </outboundProperties>
       </transformer>
-      <responseTransformer version="4.6.1">
+      <responseTransformer version="26.3.0">
         <elements/>
         <inboundDataType>RAW</inboundDataType>
         <outboundDataType>RAW</outboundDataType>
-        <inboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="4.6.1">
-          <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="4.6.1">
+        <inboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="26.3.0">
+          <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="26.3.0">
             <splitType>JavaScript</splitType>
             <batchScript></batchScript>
           </batchProperties>
         </inboundProperties>
-        <outboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="4.6.1">
-          <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="4.6.1">
+        <outboundProperties class="com.mirth.connect.plugins.datatypes.raw.RawDataTypeProperties" version="26.3.0">
+          <batchProperties class="com.mirth.connect.plugins.datatypes.raw.RawBatchProperties" version="26.3.0">
             <splitType>JavaScript</splitType>
             <batchScript></batchScript>
           </batchProperties>
         </outboundProperties>
       </responseTransformer>
-      <filter version="4.6.1">
+      <filter version="26.3.0">
         <elements>
-          <com.mirth.connect.plugins.rulebuilder.RuleBuilderRule version="4.6.1">
+          <com.mirth.connect.plugins.rulebuilder.RuleBuilderRule version="26.3.0">
             <name>Accept message if &quot;$(&apos;endpoint&apos;)&quot; equals &apos;bundle&apos;</name>
             <sequenceNumber>0</sequenceNumber>
             <enabled>true</enabled>
@@ -3071,7 +3173,7 @@ function notFound() {
               <string>&apos;bundle&apos;</string>
             </values>
           </com.mirth.connect.plugins.rulebuilder.RuleBuilderRule>
-          <com.mirth.connect.plugins.rulebuilder.RuleBuilderRule version="4.6.1">
+          <com.mirth.connect.plugins.rulebuilder.RuleBuilderRule version="26.3.0">
             <name>Accept message if &quot;sourceMap.get(&apos;contextPath&apos;)&quot; equals &apos;/ccda/Bundle/&apos; or &apos;/ccda/Bundle&apos;</name>
             <sequenceNumber>1</sequenceNumber>
             <enabled>true</enabled>
@@ -3127,7 +3229,7 @@ return;
   <undeployScript>// This script executes once when the channel is undeployed
 // You only have access to the globalMap and globalChannelMap here to persist data
 return;</undeployScript>
-  <properties version="4.6.1">
+  <properties version="26.3.0">
     <clearGlobalChannelMap>true</clearGlobalChannelMap>
     <messageStorageMode>METADATA</messageStorageMode>
     <encryptData>false</encryptData>
@@ -3150,7 +3252,7 @@ return;</undeployScript>
         <mappingName>message_type</mappingName>
       </metaDataColumn>
     </metaDataColumns>
-    <attachmentProperties version="4.6.1">
+    <attachmentProperties version="26.3.0">
       <type>None</type>
       <properties/>
     </attachmentProperties>
@@ -3165,21 +3267,21 @@ return;</undeployScript>
     <metadata>
       <enabled>true</enabled>
       <lastModified>
-        <time>1776334401999</time>
+        <time>1777957159896</time>
         <timezone>Asia/Calcutta</timezone>
       </lastModified>
       <pruningSettings>
         <archiveEnabled>true</archiveEnabled>
         <pruneErroredMessages>false</pruneErroredMessages>
       </pruningSettings>
-      <userId>6</userId>
+      <userId>10</userId>
     </metadata>
     <channelTags>
       <channelTag>
-        <id>923c9b91-edef-4f30-a263-0b290c22dbd9</id>
-        <name>0_5_28</name>
+        <id>74f5ea38-7a1d-4f65-b676-2aaf71fcffe8</id>
+        <name>0_5_29</name>
         <channelIds>
-          <string>c00e53b6-6165-4bb3-bd47-7f1e5d9708d4</string>
+          <string>30c99bf7-8d1a-45c6-b391-e2b88b1103ea</string>
         </channelIds>
         <backgroundColor>
           <red>255</red>
