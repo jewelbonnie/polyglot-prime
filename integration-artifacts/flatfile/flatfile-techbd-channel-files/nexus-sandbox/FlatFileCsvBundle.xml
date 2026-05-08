@@ -2,10 +2,10 @@
   <id>89def8c9-d8d2-46e2-a254-6345b05cfcb4</id>
   <nextMetaDataId>2</nextMetaDataId>
   <name>FlatFileCsvBundle</name>
-  <description>Version: 0.9.21
-Implemented validation and default handling for the `immediate` query parameter.
+  <description>Version: 0.9.22
+Implemented validation and default fallback handling for the immediate query parameter.
 </description>
-  <revision>8</revision>
+  <revision>13</revision>
   <sourceConnector version="26.3.0">
     <metaDataId>0</metaDataId>
     <name>sourceConnector</name>
@@ -751,7 +751,11 @@ var baseFhirurl =  channelMap.get(&apos;baseFhirurl&apos;); &#xd;logger.info(&qu
 var immediateParamRaw = $(&apos;parameters&apos;).get(&apos;immediate&apos;);
 var immediateParam = String(immediateParamRaw == null ? &quot;true&quot; : immediateParamRaw).trim();
 
-if (immediateParam.toLowerCase() !== &quot;false&quot;) {
+var immediateParamNormalized = immediateParam.toLowerCase();
+
+if (immediateParamNormalized === &quot;false&quot; || immediateParamNormalized === &quot;no&quot;) {
+    immediateParam = &quot;false&quot;;
+} else {
     immediateParam = &quot;true&quot;;
 }
 
@@ -947,7 +951,7 @@ return;</undeployScript>
     <metadata>
       <enabled>true</enabled>
       <lastModified>
-        <time>1778062279775</time>
+        <time>1778225130520</time>
         <timezone>Asia/Calcutta</timezone>
       </lastModified>
       <pruningSettings>
@@ -958,8 +962,8 @@ return;</undeployScript>
     </metadata>
     <channelTags>
       <channelTag>
-        <id>53ba11d2-c91b-4a4c-a281-86ad8ebb3706</id>
-        <name>0_9_21</name>
+        <id>619854e0-df17-4c7f-a28c-07769470fcb9</id>
+        <name>0_9_22</name>
         <channelIds>
           <string>89def8c9-d8d2-46e2-a254-6345b05cfcb4</string>
         </channelIds>
