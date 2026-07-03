@@ -81,8 +81,8 @@
       "type": "Lookup Manager",
       "channel": "lookup_group_config_export.json",
       "version": "",
-      "editedby": "Nikhithaprojects9696",
-      "date": "2026-06-08"
+      "editedby": "jewelbonnie",
+      "date": "2026-07-03"
     },
     {
       "type": "Lookup Manager",
@@ -108,9 +108,9 @@
     {
       "type": "Router",
       "channel": "RouterChannel.xml",
-      "version": "0.2.20",
-      "editedby": "abhiramisanthosh90",
-      "date": "2026-06-26"
+      "version": "0.2.21",
+      "editedby": "jewelbonnie",
+      "date": "2026-07-03"
     },
   {
       "type": "code-templates",
