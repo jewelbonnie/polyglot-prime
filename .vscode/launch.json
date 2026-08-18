@@ -19,6 +19,16 @@
             "projectName": "nexus-ingestion-api",
             "args": "",
             "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "type": "java",
+            "name": "Spring Boot-FhirValidationApplication<fhir-validation-service>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "org.techbd.fhir.FhirValidationApplication",
+            "projectName": "fhir-validation-service",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
         }
     ]
 }
